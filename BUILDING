@@ -1,0 +1,14 @@
+BUILD:
+0. Build GASNet in the vendor/source/ directory and make sure to install
+   it in vendor/install. There are example configure options in the
+   vendor/source/ directory.
+1. Call "cmake .." in the build/ directory to generator the build script.
+   You may have to CMakeList.txt to reflect your compiler installation
+   path.
+2. Build using your local build tool (eg. call "make")
+
+You will find the library in "lib" and the examples in "bin".
+
+INSTALL:
+Currently not available. Just point your include path to include/ and
+your linker to lib/ to use it.

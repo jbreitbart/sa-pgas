@@ -1,0 +1,6 @@
+Single assignment PGAS memory
+Jens Breitbart <jbreitbart@gmail.com>
+
+Implementation of a single assignment data structures for distributed
+memory systems. A detailed discussion of the work is currently
+available on request.
