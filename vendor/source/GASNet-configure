@@ -1,7 +1,7 @@
 Debug config:
-./configure --enable-debug --enable-segment-everything --prefix=/home/jbreitbart/projekte/pgas/code/adabs/vendor/install/
-./configure --enable-debug --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/adabs/vendor/install/
+./configure --enable-debug --enable-segment-everything --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install
+./configure --enable-debug --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install
 
 Release config
-./configure --enable-trace --enable-stats --disable-aligned-segments --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/adabs/vendor/install/
+./configure --enable-trace --enable-stats --disable-aligned-segments --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install
 
