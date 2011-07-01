@@ -86,6 +86,9 @@ void init(int *argc, char **argv[]) {
 	callbacks[13].index = DISTRIBUTED_MATRIX_BASE_RESET_USE_FLAG;
 	callbacks[13].fnptr = (void (*)()) &remote_reset_reuse_all_remote_counter;
 	
+	callbacks[14].index = DISTRIBUTED_MATRIX_BASE_SCATTER;
+	callbacks[14].fnptr = (void (*)()) &scatter_matrix_caller;
+	
 	GASNET_CALL(gasnet_attach (callbacks, NUMBER_OF_CALLBACKS, gasnet_getMaxLocalSegmentSize(), 0))
 
 	pthread_t network_thread;

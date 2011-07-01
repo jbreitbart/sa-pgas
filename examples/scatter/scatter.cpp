@@ -77,60 +77,7 @@ int main(int argc, char *argv[]) {
 	}
 	
 	adabs::barrier_wait();
-#if 0	
-	// init all mas with data
-	if (me==0) {
-		for (int maI=0; maI<all+2; ++maI) {
-			std::cout << me << ": " << maI << std::endl;
-			for (int b=0; b<SIZE/TILE_SIZE; ++b) {
-				for (int a=0; a<SIZE/TILE_SIZE; ++a) {
-				
-					double * restrict Aptr = mas[maI]->get_tile_unitialized(a,b);
-					for (int i=0; i<TILE_SIZE; ++i) {
-						#pragma vector aligned
-						for (int j=0; j<TILE_SIZE; ++j) {
-							Aptr[i*TILE_SIZE+j] = i;
-						}
-					}
 
-					mas[maI]->set_tile(Aptr, a, b);
-				}
-			}
-		}
-	}
-	
-	adabs::barrier_wait();
-	
-	for (int maI=1; maI<all+2; ++maI) {
-		mas[maI] -> enable_reuse(); 
-	}
-	
-	for (int maI=1; maI<all+2; ++maI) {
-		mas[maI] -> wait_for_reuse(); 
-	}
-	
-	adabs::barrier_wait();
-	
-	for (int i=0; i<50; ++i) {
-		matrixT &old = *mas[i%(all+2)];
-		matrixT &cur = *mas[(i+1)%(all+2)];
-		
-		//std::cout << me << ": waiting for " << (i+1)%(all+2) << std::endl;
-		cur.wait_for_reuse();
-		cur.use();
-		
-		//std::cout << me << ": START " << i << " =================" << std::endl;
-		
-		compute_matrix(old, cur, me, all);
-		
-		//std::cout << me << ": END " << i << " =================" << std::endl;
-		
-		//std::cout << me << ": free " << (i)%(all+2) << std::endl;
-		old.enable_reuse();
-	}
-	
-	adabs::barrier_wait();
-#endif
 	return 0;
 } 
 

@@ -71,6 +71,8 @@ class matrix_base {
 		virtual bool enable_reuse(const bool)=0;
 		virtual void enable_reuse_all(const bool first_caller)=0;
 		
+		virtual void remote_scatter_caller()=0;
+		
 		matrix_base() : delete_flag(0), use_flag(0), reuse_all_remote_counter(0) {}
 		
 		virtual ~matrix_base() {};
@@ -170,6 +172,15 @@ inline void remote_reset_reuse_all_remote_counter(gasnet_token_t token, gasnet_h
 	
 	that -> set_use_flag_start();	
 }
+
+inline void scatter_matrix_caller(gasnet_token_t token, gasnet_handlerarg_t arg0, gasnet_handlerarg_t arg1) {
+	using namespace adabs::tools;
+	
+	matrix_base * const that = get_ptr<matrix_base>(arg0, arg1);
+	
+	that -> remote_scatter_caller();
+}
+
 
 }
 

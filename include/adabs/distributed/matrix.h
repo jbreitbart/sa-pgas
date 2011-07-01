@@ -19,6 +19,9 @@ namespace distributed {
 
 /**
  * Simple row distribution used with distributed matrixes.
+ * Mostly a very basic example for distributions, nothing fancy.
+ * Interface may need some redesign, but we need more examples to be
+ * sure.
  * @param row_size defines the size of the rows
  */
 template <int row_size>
@@ -67,10 +70,19 @@ struct row_distribution {
 		else return tile_size*b;
 	}
 	
+	template <typename T, typename T2>
+	static void scatter_root(T &rhs, const T2 &lhs) {
+		std::cout << "distribution.scatter_root called" << std::endl;
+	}
+	
+	template <typename T>
+	static void scatter_receiver(T &rhs) {
+		std::cout << "distribution.scatter_receiver called" << std::endl;
+	}
 };
 
 /**
- * This is a tile based matrix class.
+ * This is a tile based distributed matrix.
  *
  * Note: You should not inheriate from this matrix.
  * TODO comment me
@@ -90,7 +102,7 @@ class matrix : public matrix_base {
 		const int _nb_tiles_x;
 		const int _nb_tiles_y;
 		
-		adabs::collective::vector< pgas_addr< adabs::matrix<double, tile_size> > > _proxy_addrs;
+		adabs::collective::vector< pgas_addr< adabs::matrix<T, tile_size> > > _proxy_addrs;
 		adabs::collective::vector< adabs::distributed::matrix_base* > _mes;
 		
 		adabs::matrix<T, tile_size> *_local_data;
@@ -133,7 +145,7 @@ class matrix : public matrix_base {
 			for (int i=0; i<me; ++i) {
 				delete _proxies[i];
 			}
-			for (int i=me; i<all; ++i) {
+			for (int i=me+1; i<all; ++i) {
 				delete _proxies[i];
 			}
 			
@@ -148,7 +160,7 @@ class matrix : public matrix_base {
 		 * Copies the values stored in
 		 * @param ptr[0 ... tile_size*tile_size]
 		 * to the tile with the coordinates
-		 * @param x and @param y
+		 * @param x and @pscaaram y
 		 * and marks the values as initialized. If @param *ptr is
 		 * identical to a pointer returned by get_tile_unitialized
 		 * no data will be copied.
@@ -369,6 +381,69 @@ class matrix : public matrix_base {
 			return distribution::is_local(x,y);
 		}
 		
+		/**
+		 * This is far from perfect. Some things to consider:
+		 * - I know this should not return void, but as long as I am 
+		 *   unsure how chaining of op= look like, since this is a
+		 *   collective operation.
+		 * - We currently expect @param rhs to be a local
+		 *   data structure. We should add compile time identifiers to
+		 *   the classes so we know if they are local and may optimize
+		 *   for this case. Most likely broken for non-local types
+		 * - We currently do not check if the data stored is compatible.
+		 *   This may break really badly!!!
+		 */
+		template<typename T>
+		void operator=(const T& rhs) {
+			using namespace adabs::tools;
+			
+			const int me = gasnet_mynode();
+			const int all = gasnet_nodes();
+			
+			std::cout << me << ": op= called" << std::endl;
+			
+			// start scatter operatiion on all nodes
+			for (int i=0; i<me; ++i) {
+				GASNET_CALL(gasnet_AMRequestShort2(i,
+										           adabs::impl::DISTRIBUTED_MATRIX_BASE_SCATTER,
+										           get_low(_mes.get(i)),
+										           get_high(_mes.get(i))
+										          )
+						   )
+			}
+			for (int i=me+1; i<all; ++i) {
+				GASNET_CALL(gasnet_AMRequestShort2(i,
+										           adabs::impl::DISTRIBUTED_MATRIX_BASE_SCATTER,
+										           get_low(_mes.get(i)),
+										           get_high(_mes.get(i))
+										          )
+						   )
+			}
+			
+			// ok, we are root and we start sending
+			distribution::scatter_root(rhs, *_local_data);
+			
+		}
+		
+		void remote_scatter_caller() {
+			const int me = gasnet_mynode();
+			std::cout << me << ": remote scatter called" << std::endl;
+			distribution::scatter_receiver(*_local_data);
+		}
+		
+		/*void distributaion.scatter.mpi(bool root, const T &rhs) {
+			tile<Tdata, 64>* copied_data
+			if (root) {
+				copied_data = new Tdata[rhs.size()];
+			
+				// copy data into copied_data in the right order
+			} else {
+				copied_data = new Tdata[distribution.local_size()];
+			}
+			
+			// call MPI_reduce
+		}*/
+		
 };
 
 template <typename T, int tile_size, typename distribution>
@@ -378,7 +453,7 @@ void matrix<T, tile_size, distribution>::create_proxies() {
 	for (int i=0; i<me; ++i) {
 		_proxies[i] = new adabs::remote_matrix<T, tile_size>(_proxy_addrs.get(i));
 	}
-	for (int i=me; i<all; ++i) {
+	for (int i=me+1; i<all; ++i) {
 		_proxies[i] = new adabs::remote_matrix<T, tile_size>(_proxy_addrs.get(i));
 	}
 } 

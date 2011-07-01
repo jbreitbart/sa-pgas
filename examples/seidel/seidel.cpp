@@ -18,7 +18,7 @@
 using namespace std;
 
 const int TILE_SIZE       = 64;
-const int SIZE            = 4096*8;
+const int SIZE            = 4096;
 const int THREADS         = 4;
 const int ITERATIONS      = 100;
 
