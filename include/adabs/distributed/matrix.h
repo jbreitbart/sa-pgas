@@ -72,6 +72,22 @@ struct row_distribution {
 	
 	template <typename T, typename T2>
 	static void scatter_root(T &rhs, const T2 &lhs) {
+		//first check if all data is available
+		for (int y=0; y<rhs.get_nb_tile_y(); ++y) {
+			for (int x=0; x<rhs.get_nb_tile_x(); ++x) {
+				rhs.get_tile(x,y);
+			}
+		}
+		
+		// ok, now call MPI scatter
+		// NOTE: We expect the data to be stored in one linear memory
+		//       block so we do not have to copy it into a local mem
+		//       block.
+		// TODO: Comment this requirement somewhere or decide to erase
+		//       it.
+		
+		
+		
 		std::cout << "distribution.scatter_root called" << std::endl;
 	}
 	
@@ -128,7 +144,10 @@ class matrix : public matrix_base {
 		    _mes(gasnet_nodes()),
 		    _proxies(gasnet_nodes())
 		{
-		    _local_data = new adabs::matrix<T, tile_size>(distribution::get_local_size_x(size_x), distribution::get_local_size_y<tile_size>(size_y));
+		    _local_data = new adabs::matrix<T, tile_size>(
+		                         distribution::get_local_size_x(size_x), 
+		                         distribution::template get_local_size_y<tile_size>(size_y) 
+		                                                   );
 			_proxy_addrs.set(gasnet_mynode(), _local_data->get_pgas_addr());
 			_mes.set(gasnet_mynode(), this);
 			create_proxies();
@@ -383,18 +402,18 @@ class matrix : public matrix_base {
 		
 		/**
 		 * This is far from perfect. Some things to consider:
-		 * - I know this should not return void, but as long as I am 
-		 *   unsure how chaining of op= look like, since this is a
+		 * - I know this should not return void, but I am 
+		 *   unsure how chaining of op= should look like, since this is a
 		 *   collective operation.
 		 * - We currently expect @param rhs to be a local
 		 *   data structure. We should add compile time identifiers to
 		 *   the classes so we know if they are local and may optimize
-		 *   for this case. Most likely broken for non-local types
+		 *   for this case. Most likely broken for non-local types.
 		 * - We currently do not check if the data stored is compatible.
 		 *   This may break really badly!!!
 		 */
-		template<typename T>
-		void operator=(const T& rhs) {
+		template<typename T1>
+		void operator=(const T1& rhs) {
 			using namespace adabs::tools;
 			
 			const int me = gasnet_mynode();

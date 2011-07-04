@@ -19,29 +19,23 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/lib ${CMAKE_CURRENT_
 # UDP conduit
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
 SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp)
-#SET(GASLIBs -lgasnet-udp-parsync -lgasnet_tools-par -lamudp -lrt -ladabs -openmp)
 
+# Intel compiler options, debugg and release
+ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
+#ADD_DEFINITIONS(-Wall -g -fast -Wno-unused-function -openmp)
 
-# IBV conduit
-#SET(CMAKE_CXX_COMPILER /home/jbreitbart/temp/openmpiInstall/bin/mpic++)
-#SET(CMAKE_C_COMPILER /home/jbreitbart/temp/openmpiInstall/bin/mpicc)
-#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/ibv-conduit)
-#SET(GASLIBs -lgasnet-ibv-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp -libverbs )
 
 
 # MPI conduit
 #SET(CMAKE_CXX_COMPILER /usr/bin/mpiCC)
 #SET(CMAKE_C_COMPILER /usr/bin/mpicc)
+#ADD_DEFINITIONS(-g -O2 -fopenmp)
 #INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
 #SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi -lrt -ladabs -fopenmp)
 
+
 # if you don want the full compiler output, uncomment the following line
 #SET(CMAKE_VERBOSE_MAKEFILE ON)
-
-# add definitions, compiler switches, etc.
-ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
-#ADD_DEFINITIONS(-Wall -g -fast -Wno-unused-function -openmp)
-#ADD_DEFINITIONS(-Wall -g -O2 -fopenmp)
 
 
 # build the library
@@ -56,3 +50,12 @@ cmake_minimum_required(VERSION 2.4)
 if(COMMAND cmake_policy)
   cmake_policy(SET CMP0003 NEW)
 endif(COMMAND cmake_policy)
+
+
+## UNTESTED UNTESTED UNTESTED UNTESTED UNTESTED
+# IBV conduit
+#SET(CMAKE_CXX_COMPILER /home/jbreitbart/temp/openmpiInstall/bin/mpic++)
+#SET(CMAKE_C_COMPILER /home/jbreitbart/temp/openmpiInstall/bin/mpicc)
+#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/ibv-conduit)
+#SET(GASLIBs -lgasnet-ibv-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp -libverbs )
+
