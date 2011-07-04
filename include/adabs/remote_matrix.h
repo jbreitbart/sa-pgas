@@ -53,7 +53,7 @@ class remote_matrix : public matrix_base {
 		 */
 		~remote_matrix() {
 			for (int i = 0; i<get_nb_tile_y()*get_nb_tile_x(); ++i) {
-				delete []_data[i].second;
+				delete _data[i].second;
 			}
 			delete []_data;
 		}
@@ -130,10 +130,11 @@ class remote_matrix : public matrix_base {
 
 template <typename T, int tile_size>
 T* remote_matrix<T, tile_size>::get_tile_unitialized(const int x, const int y) {
-
 	#pragma omp critical
 	{	
-		if (_data[y*_nb_tiles_x + x].second == 0) _data[y*_nb_tiles_x + x].second = new tile();
+		if (_data[y*_nb_tiles_x + x].second == 0) {
+			_data[y*_nb_tiles_x + x].second = new tile();
+		}
 	}
 	 
 	return _data[y*_nb_tiles_x + x].second->data;
@@ -154,7 +155,7 @@ void remote_matrix<T, tile_size>::set_tile(T const * restrict const ptr, const i
 	typedef std::pair<volatile int, tile > localdataT;
 	
 	if (sent) {
-		localdataT *dest_ptr1 = (localdataT*)pgas_get_data_ptr();
+		localdataT *dest_ptr1 = static_cast<localdataT*>(pgas_get_data_ptr());
 		       dest_ptr1 += y*_nb_tiles_x + x;
 		void  *dest_ptr2 = (void*)(&dest_ptr1->second.data[0]);
 		

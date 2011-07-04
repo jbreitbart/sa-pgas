@@ -18,7 +18,7 @@
 using namespace std;
 
 const int TILE_SIZE = 64;
-const int SIZE = 4096*2;
+const int SIZE = 4096;
 const int THREADS = 4;
 
 
@@ -276,6 +276,7 @@ int main(int argc, char *argv[]) {
 
 	//computation with remote matrix
 	{
+		
 		std::cout << me << ": starting remote init" << std::endl;
 		adabs::matrix<double, TILE_SIZE> A(SIZE, SIZE),
 			                             A1(SIZE, SIZE),
@@ -310,6 +311,7 @@ int main(int argc, char *argv[]) {
 				compare(C_seq, C, a, b);
 			}
 		}
+		
 		adabs::barrier_wait();
 	}
 	

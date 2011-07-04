@@ -16,7 +16,12 @@
 namespace adabs {
 
 /**
- * TODO comment me
+ * This is a matrix base class used for both remote matrix and local
+ * matrix. This class is required for the PGAS communication.
+ * 
+ * At the bottom of the file are also some non class functions, which
+ * should be friend functions (and some data/functions of the class
+ * should be private).
  */
 class matrix_base {
 		/************************ VARIABLES **************************/
