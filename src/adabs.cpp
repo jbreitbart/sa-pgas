@@ -8,6 +8,11 @@
 
 namespace adabs {
 
+// variables used with busy waiting
+// yes, I know, you think this is really bad, but we expect the other
+// thread to react quickly (after all, we target dedicated HPC systems)
+static volatile int thread_end = 0;
+
 int get_barrier_id() {
 	static int id = 0;
 	id = (id+1) % 256;
@@ -15,21 +20,26 @@ int get_barrier_id() {
 }
 
 void barrier_wait() {
+	// could use anonymous barrier here
 	const int barrier_id = adabs::get_barrier_id();
 	gasnet_barrier_notify(barrier_id, GASNET_BARRIERFLAG_ANONYMOUS);
 	GASNET_CALL(gasnet_barrier_wait(barrier_id, GASNET_BARRIERFLAG_ANONYMOUS))
 }
 
 void exit(const int errorcode) {
+	__sync_lock_test_and_set (&thread_end, 1);
+	while (thread_end != 2) {}
 	barrier_wait();
+	
 	gasnet_exit(0);
 }
 
 static void* network(void *threadid) {
 	GASNET_BEGIN_FUNCTION();
-	while (true) {
+	while (thread_end != 1) {
 		GASNET_CALL(gasnet_AMPoll())
 	}
+	__sync_lock_test_and_set (&thread_end, 2);
 	pthread_exit(0);
 }
 

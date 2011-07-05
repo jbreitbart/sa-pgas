@@ -450,19 +450,6 @@ class matrix : public matrix_base {
 			distribution::scatter_receiver(*_local_data);
 		}
 		
-		/*void distributaion.scatter.mpi(bool root, const T &rhs) {
-			tile<Tdata, 64>* copied_data
-			if (root) {
-				copied_data = new Tdata[rhs.size()];
-			
-				// copy data into copied_data in the right order
-			} else {
-				copied_data = new Tdata[distribution.local_size()];
-			}
-			
-			// call MPI_reduce
-		}*/
-		
 };
 
 template <typename T, int tile_size, typename distribution>

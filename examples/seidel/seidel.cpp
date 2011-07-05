@@ -435,7 +435,7 @@ int main(int argc, char *argv[]) {
 	
 	for (int a=0; a<SIZE/TILE_SIZE; ++a) {
 		for (int b=0; b<SIZE/TILE_SIZE; ++b) {
-			//compare(*mas[cur_index], *oldptr, a, b);
+			compare(*mas[cur_index], *oldptr, a, b);
 		}
 	}
 
