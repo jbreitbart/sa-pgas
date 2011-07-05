@@ -5,6 +5,11 @@ SET(CMAKE_CXX_COMPILER /opt/intel/bin/icpc)
 SET(CMAKE_C_COMPILER /opt/intel/bin/icc)
 SET(CMAKE_AR /opt/intel/bin/xiar)
 
+# set mpi compiler
+SET(CMAKE_CXX_COMPILER /opt/openmpi/bin/mpiCC)
+SET(CMAKE_C_COMPILER /opt/openmpi/bin/mpicc)
+
+
 # set the include path
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/include/)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include)
@@ -17,8 +22,8 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/lib ${CMAKE_CURRENT_
 #SET(GASLIBs -lgasnet-smp-seq -lgasnet_tools-seq -lamudp -lrt -ladabs -openmp)
 
 # UDP conduit
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
-SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp)
+#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
+#SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp)
 
 # Intel compiler options, debugg and release
 ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
@@ -30,8 +35,8 @@ ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
 #SET(CMAKE_CXX_COMPILER /usr/bin/mpiCC)
 #SET(CMAKE_C_COMPILER /usr/bin/mpicc)
 #ADD_DEFINITIONS(-g -O2 -fopenmp)
-#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
-#SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi -lrt -ladabs -fopenmp)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
+SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi -lrt -ladabs -openmp)
 
 
 # if you don want the full compiler output, uncomment the following line

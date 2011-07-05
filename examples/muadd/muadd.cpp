@@ -315,6 +315,7 @@ int main(int argc, char *argv[]) {
 		adabs::barrier_wait();
 	}
 	
+	adabs::exit(0);
 	
 	return 0;
 } 

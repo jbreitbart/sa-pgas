@@ -20,6 +20,11 @@ void barrier_wait() {
 	GASNET_CALL(gasnet_barrier_wait(barrier_id, GASNET_BARRIERFLAG_ANONYMOUS))
 }
 
+void exit(const int errorcode) {
+	barrier_wait();
+	gasnet_exit(0);
+}
+
 static void* network(void *threadid) {
 	GASNET_BEGIN_FUNCTION();
 	while (true) {
@@ -27,7 +32,6 @@ static void* network(void *threadid) {
 	}
 	pthread_exit(0);
 }
-
 
 void init(int *argc, char **argv[]) {
 	using namespace adabs::impl;

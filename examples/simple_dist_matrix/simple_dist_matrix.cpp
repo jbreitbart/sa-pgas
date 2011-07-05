@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
 		old.enable_reuse();
 	}
 	
-	adabs::barrier_wait();
+	adabs::exit(0);
 	
 	return 0;
 } 
