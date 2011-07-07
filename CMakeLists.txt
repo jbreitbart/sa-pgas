@@ -14,7 +14,7 @@ SET(CMAKE_C_COMPILER /opt/openmpi/bin/mpicc)
 
 # Compiler options
 #ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
-ADD_DEFINITIONS(-Wall -g -fast -Wno-unused-function -openmp)
+ADD_DEFINITIONS(-Wall -g0 -fast -Wno-unused-function -openmp)
 #####################
 
 
@@ -30,12 +30,12 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/lib ${CMAKE_CURRENT_
 #SET(GASLIBs -lgasnet-smp-seq -lgasnet_tools-seq -lamudp -lrt -ladabs -openmp)
 
 # UDP conduit
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
-SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp)
+#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
+#SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp -lrt -ladabs -openmp)
 
 # MPI conduit
-#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
-#SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi -lrt -ladabs -openmp)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
+SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi -lrt -ladabs -openmp)
 
 
 # if you don want the full compiler output, uncomment the following line

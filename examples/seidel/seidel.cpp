@@ -18,7 +18,7 @@
 using namespace std;
 
 const int TILE_SIZE       = 64;
-const int SIZE            = 4096;
+const int SIZE            = 4096*2;
 const int THREADS         = 4;
 const int ITERATIONS      = 100;
 
@@ -349,14 +349,11 @@ int main(int argc, char *argv[]) {
 	std::cout << me << ": done creating" << std::endl;
 	adabs::barrier_wait();
 	
-	// init all mas with data
-	//if (me==0) {
-		for (int maI=0; maI<all+2; ++maI) {
-			std::cout << me << ": " << maI << std::endl;
-			fill_matrix(*mas[maI]);
-		}
-		std::cout << me << ": matrix filled" << std::endl;
-	//}
+	for (int maI=0; maI<all+2; ++maI) {
+		std::cout << me << ": " << maI << std::endl;
+		fill_matrix(*mas[maI]);
+	}
+	std::cout << me << ": matrix filled" << std::endl;
 	
 	adabs::barrier_wait();
 	for (int maI=1; maI<all+2; ++maI) {
