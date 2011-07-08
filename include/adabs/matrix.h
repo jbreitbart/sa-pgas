@@ -19,8 +19,8 @@ template <typename T, int tile_size>
 class matrix : public matrix_base {
 		/************************ TYPEDEFS ***************************/
 	private:
-		typedef tools::tile<T, tile_size> tile;
-		typedef std::pair<volatile int, tile> dataT;
+		typedef tools::tile<T, tile_size> dataT;//tile;
+		//typedef std::pair<volatile int, tile> dataT;
 		
 	
 		/************************ VARIABLES **************************/
@@ -63,8 +63,8 @@ class matrix : public matrix_base {
 			
 			for (int y=0; y<tiles_y; ++y) {
 				for (int x=0; x<tiles_x; ++x) {
-					if (cpy._data[y*_nb_tiles_x + x].first == 1) {
-						copy_tile(cpy._data[y*_nb_tiles_x + x].second.data, x, y);
+					if (cpy._data[y*_nb_tiles_x + x].flag == 1) {
+						copy_tile(cpy._data[y*_nb_tiles_x + x].data, x, y);
 					}
 				}
 			}
@@ -79,13 +79,13 @@ class matrix : public matrix_base {
 		/************************ FUNCTIONS **************************/
 	private:
 		void copy_tile(const restrict T *const source, const int x, const int y) {
-			restrict T *const target = _data[y*_nb_tiles_x + x].second.data;
+			restrict T *const target = _data[y*_nb_tiles_x + x].data;
 			
 			#pragma vector aligned nontemporal(target, source)
 			for (int i=0; i<tile_size*tile_size; ++i)
 				target[i] = source[i];
 			
-			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].first, 1);
+			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].flag, 1);
 		}
 
 
@@ -150,9 +150,9 @@ class matrix : public matrix_base {
 		
 		void pgas_mark(const int x, const int y) {
 			//std::cout << gasnet_mynode() << " " << "pgas mark " << y*_nb_tiles_x + x << " - " 
-			// << " " << &_data[y*_nb_tiles_x + x].second.data[0] << std::endl;
-			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].first, 1);
-			//std::cout << gasnet_mynode() << " new value: " << _data[y*_nb_tiles_x + x].first << std::endl;
+			// << " " << &_data[y*_nb_tiles_x + x].data[0] << std::endl;
+			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].flag, 1);
+			//std::cout << gasnet_mynode() << " new value: " << _data[y*_nb_tiles_x + x].flag << std::endl;
 		}
 		
 		int pgas_tile_size() const { return get_tile_size()*get_tile_size()*sizeof(T); }
@@ -162,7 +162,7 @@ class matrix : public matrix_base {
 			const int tiles_y = get_nb_tile_y();
 			
 			for (int y=0; y<tiles_y * tiles_x; ++y) {
-				__sync_lock_test_and_set (&_data[y].first, 0);
+				__sync_lock_test_and_set (&_data[y].flag, 0);
 			}
 
 		}
@@ -183,29 +183,29 @@ void matrix<T, tile_size>::alloc_memory() {
 
 template <typename T, int tile_size>
 T* matrix<T, tile_size>::get_tile_unitialized(const int x, const int y) {
-	return _data[y*_nb_tiles_x + x].second.data;
+	return _data[y*_nb_tiles_x + x].data;
 }
 
 template <typename T, int tile_size>
 void matrix<T, tile_size>::set_tile(T const * restrict const ptr, const int x, const int y) {
-	if (_data[y*_nb_tiles_x + x].second.data != ptr) {
+	if (_data[y*_nb_tiles_x + x].data != ptr) {
 		throw "Error";
 	}
 
-	__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].first, 1);
+	__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].flag, 1);
 	__sync_synchronize();
 }
 
 template <typename T, int tile_size>
 T const* matrix<T, tile_size>::get_tile(const int x, const int y) const {
-	//std::cout << gasnet_mynode() << " " << "local get_tile " << x << " " << y << " - " << &_data[y*_nb_tiles_x + x].first << std::endl;
-	//std::cout << gasnet_mynode() << " " << _data[y*_nb_tiles_x + x].first << " - " << &_data[y*_nb_tiles_x + x].first << std::endl;
+	//std::cout << gasnet_mynode() << " " << "local get_tile " << x << " " << y << " - " << &_data[y*_nb_tiles_x + x].flag << std::endl;
+	//std::cout << gasnet_mynode() << " " << _data[y*_nb_tiles_x + x].flag << " - " << &_data[y*_nb_tiles_x + x].flag << std::endl;
 	
-	volatile int *reader = &_data[y*_nb_tiles_x + x].first;
+	volatile int *reader = &_data[y*_nb_tiles_x + x].flag;
 	while (*reader == 0){}
-	//GASNET_BLOCKUNTIL(_data[y*_nb_tiles_x + x].first != 0);
+	//GASNET_BLOCKUNTIL(_data[y*_nb_tiles_x + x].flag != 0);
 	
-	return _data[y*_nb_tiles_x + x].second.data;
+	return _data[y*_nb_tiles_x + x].data;
 }
 
 }

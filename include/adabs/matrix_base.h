@@ -59,6 +59,7 @@ class matrix_base {
 			while (*reader==-1) {
 				
 			}
+			
 			//GASNET_BLOCKUNTIL(_size_y!=-1);
 		}
 		
@@ -169,6 +170,9 @@ inline void remote_set_matrix_tile (gasnet_token_t token, void *buf, size_t nbyt
 	__sync_synchronize();
 }
 
+/**
+ * Pthread argument class
+ */
 struct remote_get_matrix_tile_thread_arg {
 	matrix_base *that;
 	int x;

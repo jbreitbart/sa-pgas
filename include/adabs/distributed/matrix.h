@@ -13,6 +13,8 @@
 
 #include "adabs/distributed/matrix_base.h"
 
+#include <mpi.h>
+
 namespace adabs {
 
 namespace distributed {
@@ -71,7 +73,7 @@ struct row_distribution {
 	}
 	
 	template <typename T, typename T2>
-	static void scatter_root(T &rhs, const T2 &lhs) {
+	static void scatter_root(T const &rhs, const T2 &lhs) {
 		//first check if all data is available
 		for (int y=0; y<rhs.get_nb_tile_y(); ++y) {
 			for (int x=0; x<rhs.get_nb_tile_x(); ++x) {
@@ -79,13 +81,25 @@ struct row_distribution {
 			}
 		}
 		
+		// ok, this is realy ugly, but MPI_Scatter needs a non-const
+		// send buffer pointer
+		T& non_const_rhs = const_cast<T&>(rhs);
+		
 		// ok, now call MPI scatter
 		// NOTE: We expect the data to be stored in one linear memory
 		//       block so we do not have to copy it into a local mem
 		//       block.
-		// TODO: Comment this requirement somewhere or decide to erase
+		// TODO: Comment this requirement somewhere or decide to remove
 		//       it.
-		
+		/*MPI_Scatter (non_const_rhs.get_tile_unitialized(0,0),
+		              get_local_size_x(lhs.get_size_x()),//*get_local_y(),
+		              MPI_CHAR,
+		              0,
+		              get_local_size_x(lhs.get_size_x()),//*get_local_y(),
+		              MPI_CHAR,
+		              0,
+		              MPI_COMM_WORLD
+		            );*/
 		
 		
 		std::cout << "distribution.scatter_root called" << std::endl;
@@ -147,7 +161,7 @@ class matrix : public matrix_base {
 		    _local_data = new adabs::matrix<T, tile_size>(
 		                         distribution::get_local_size_x(size_x), 
 		                         distribution::template get_local_size_y<tile_size>(size_y) 
-		                                                   );
+		                                                  );
 			_proxy_addrs.set(gasnet_mynode(), _local_data->get_pgas_addr());
 			_mes.set(gasnet_mynode(), this);
 			create_proxies();

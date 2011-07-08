@@ -18,7 +18,7 @@ class remote_matrix : public matrix_base {
 		/************************ TYPEDEFS ***************************/
 	private:
 		typedef tools::tile<T, tile_size> tile;
-		typedef std::pair<volatile int, tile* > dataT;
+		typedef tile* dataT;
 		
 		typedef adabs::matrix<T, tile_size> sourceT;
 	
@@ -38,13 +38,15 @@ class remote_matrix : public matrix_base {
 		/**
 		 * Copy constructor to create a copy of @param cpy
 		 */
-		remote_matrix (const pgas_addr <sourceT>& addr) : _addr(addr), matrix_base(addr),
+		remote_matrix (const pgas_addr <sourceT>& addr) : matrix_base(addr), _addr(addr),
 		    _nb_tiles_x((get_size_x()%tile_size == 0) ? (get_size_x()/tile_size) : (get_size_x()/tile_size+1)),
 		    _nb_tiles_y((get_size_y()%tile_size == 0) ? (get_size_y()/tile_size) : (get_size_y()/tile_size+1)) {
 
 			const int tiles_y = get_nb_tile_y();
 			const int tiles_x = get_nb_tile_x();
 			_data = new dataT[tiles_y*tiles_x];
+			for (int i=0; i<tiles_y*tiles_x; ++i)
+				_data[i] = 0;
 		}
 		
 		/**
@@ -53,7 +55,7 @@ class remote_matrix : public matrix_base {
 		 */
 		~remote_matrix() {
 			for (int i = 0; i<get_nb_tile_y()*get_nb_tile_x(); ++i) {
-				delete _data[i].second;
+				delete _data[i];
 			}
 			delete []_data;
 		}
@@ -114,14 +116,19 @@ class remote_matrix : public matrix_base {
 		}
 		
 		void  pgas_mark(const int x, const int y) {
-			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].first, 2);
+			if (_data[y*_nb_tiles_x + x] == 0) {
+				std::cerr << "Error that should not be 12c" << std::endl;
+				exit(-1);
+			}
+			__sync_lock_test_and_set (&(_data[y*_nb_tiles_x + x]->flag), 2);
 		}
 		
 		int pgas_tile_size() const { return get_tile_size()*get_tile_size()*sizeof(T); }
 		
 		void clear_cache() {
 			for (int i = 0; i<get_nb_tile_y()*get_nb_tile_x(); ++i) {
-				__sync_lock_test_and_set (&_data[i].first, 0);
+				if (_data[i] != 0)
+					__sync_lock_test_and_set (&(_data[i]->flag), 0);
 			}
 		}
 };
@@ -132,12 +139,12 @@ template <typename T, int tile_size>
 T* remote_matrix<T, tile_size>::get_tile_unitialized(const int x, const int y) {
 	#pragma omp critical
 	{	
-		if (_data[y*_nb_tiles_x + x].second == 0) {
-			_data[y*_nb_tiles_x + x].second = new tile();
+		if (_data[y*_nb_tiles_x + x] == 0) {
+			_data[y*_nb_tiles_x + x] = new tile();
 		}
 	}
 	 
-	return _data[y*_nb_tiles_x + x].second->data;
+	return _data[y*_nb_tiles_x + x]->data;
 }
 
 template <typename T, int tile_size>
@@ -146,22 +153,23 @@ void remote_matrix<T, tile_size>::set_tile(T const * restrict const ptr, const i
 	
 	using namespace adabs::tools;
 
-	if (_data[y*_nb_tiles_x + x].second->data != ptr) {
+	if (_data[y*_nb_tiles_x + x] == 0 || _data[y*_nb_tiles_x + x]->data != ptr) {
 		throw "Error";
 	}
 	
-	__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].first, 2);
+	__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x]->flag, 2);
 	
-	typedef std::pair<volatile int, tile > localdataT;
 	
 	if (sent) {
-		localdataT *dest_ptr1 = static_cast<localdataT*>(pgas_get_data_ptr());
-		       dest_ptr1 += y*_nb_tiles_x + x;
-		void  *dest_ptr2 = (void*)(&dest_ptr1->second.data[0]);
+		// dataT is tile*
+		tile *dest_ptr1 = static_cast<tile*>(pgas_get_data_ptr());
+		      dest_ptr1 += y*_nb_tiles_x + x;
+		void *dest_ptr2 = (void*)(dest_ptr1);
+		
 		
 		GASNET_CALL(gasnet_AMRequestLong4(_addr.get_node(),
 					                       adabs::impl::MATRIX_BASE_SET,
-					                       (void*)_data[y*_nb_tiles_x + x].second->data, pgas_tile_size(),
+					                       (void*)_data[y*_nb_tiles_x + x]->data, pgas_tile_size(),
 					                       dest_ptr2,
 					                       get_low(_addr.get_ptr()),
 					                       get_high(_addr.get_ptr()),
@@ -178,18 +186,19 @@ T const* remote_matrix<T, tile_size>::get_tile(const int x, const int y) {
 	using namespace adabs::tools;
 	
 	// in cache?
-	if (_data[y*_nb_tiles_x + x].first == 2) {
+	if (_data[y*_nb_tiles_x + x]!= 0 && _data[y*_nb_tiles_x + x]->flag == 2) {
 		//std::cout << gasnet_mynode() << " cached" << std::endl;
-		return _data[y*_nb_tiles_x + x].second->data;
+		return _data[y*_nb_tiles_x + x]->data;
 	}
 
-	bool request = __sync_bool_compare_and_swap (&_data[y*_nb_tiles_x + x].first, 0, 1);	
+	// get dest_ptr here to make sure the tile exists
+	T* dest_ptr = get_tile_unitialized(x, y);
+	bool request = __sync_bool_compare_and_swap (&_data[y*_nb_tiles_x + x]->flag, 0, 1);	
 	
 	// get data from source
 	//std::cout << gasnet_mynode() << " remote" << std::endl;
 	if (request) {
 		//std::cout << gasnet_mynode() << " request startet for " << x << ", " << y << std::endl;
-		T* dest_ptr = get_tile_unitialized(x, y);
 		GASNET_CALL(gasnet_AMRequestShort8(_addr.get_node(),
 						                   adabs::impl::MATRIX_BASE_GET,
 						                   get_low(_addr.get_ptr()),
@@ -203,11 +212,11 @@ T const* remote_matrix<T, tile_size>::get_tile(const int x, const int y) {
 				   )
 	}
 
-	volatile int *reader = &_data[y*_nb_tiles_x + x].first; 
+	//volatile int *reader = &_data[y*_nb_tiles_x + x]->flag; 
 	//while (*reader != 2){}
-	GASNET_BLOCKUNTIL(_data[y*_nb_tiles_x + x].first == 2);
+	GASNET_BLOCKUNTIL(_data[y*_nb_tiles_x + x]->flag == 2);
 	
-	return _data[y*_nb_tiles_x + x].second->data;
+	return _data[y*_nb_tiles_x + x]->data;
 }
 
 }

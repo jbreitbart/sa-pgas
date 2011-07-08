@@ -15,9 +15,9 @@
 
 using namespace std;
 
-const int TILE_SIZE       = 128;
-const int SIZE            = 4096;
-const int THREADS         = 4;
+const int TILE_SIZE       = 64;
+const int SIZE            = 128;
+const int THREADS         = 1;
 
 
 template<typename T>
@@ -89,7 +89,6 @@ int main(int argc, char *argv[]) {
 	// init all mas with data
 	if (me==0) {
 		for (int maI=0; maI<all+2; ++maI) {
-			std::cout << me << ": " << maI << std::endl;
 			for (int b=0; b<SIZE/TILE_SIZE; ++b) {
 				for (int a=0; a<SIZE/TILE_SIZE; ++a) {
 				
@@ -100,8 +99,9 @@ int main(int argc, char *argv[]) {
 							Aptr[i*TILE_SIZE+j] = i;
 						}
 					}
-
+					
 					mas[maI]->set_tile(Aptr, a, b);
+					
 				}
 			}
 		}
