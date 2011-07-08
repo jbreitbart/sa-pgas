@@ -45,6 +45,9 @@ static void init_matrix(T& A, const int start, const int jump) {
 
 
 int main(int argc, char *argv[]) {
+	using adabs::me;
+	using adabs::all;
+
 	timeval tv1, tv2;
 
 	adabs::init(&argc, &argv);
@@ -52,9 +55,6 @@ int main(int argc, char *argv[]) {
 
 	omp_set_num_threads(THREADS);
 	
-	const int me = gasnet_mynode();
-	const int all = gasnet_nodes();
-
 	std::cout << "hello from " << me << " of " << all << std::endl;
 	
 	adabs::barrier_wait();

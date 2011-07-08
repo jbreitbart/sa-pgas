@@ -21,15 +21,15 @@ const int THREADS         = 1;
 
 
 template<typename T>
-static inline void compute_matrix(T &old_ma, T &cur_ma, int me, int all) {
+static inline void compute_matrix(T &old_ma, T &cur_ma) {
 	#pragma omp parallel
 	{
 		//int b=(all-1-me)*THREADS + omp_get_thread_num(); // remote get
-		int b=me*THREADS + omp_get_thread_num(); // remote set
+		int b=adabs::me*THREADS + omp_get_thread_num(); // remote set
 	
 		//std::cout << me << ": compute started " << b << std::endl;
 	
-		for (;b<SIZE/TILE_SIZE; b+=all*THREADS) {
+		for (;b<SIZE/TILE_SIZE; b+=adabs::all*THREADS) {
 			for (int a=0; a<SIZE/TILE_SIZE; ++a) {
 				if (b==0) {
 						  double * restrict cur = cur_ma.get_tile_unitialized(a,b);
@@ -67,28 +67,25 @@ int main(int argc, char *argv[]) {
 
 	omp_set_num_threads(THREADS);
 	
-	const int me = gasnet_mynode();
-	const int all = gasnet_nodes();
-
-	std::cout << "hello from " << me << " of " << all << std::endl;
+	std::cout << "hello from " << adabs::me << " of " << adabs::all << std::endl;
 	
 	adabs::barrier_wait();
 	
 	typedef adabs::distributed::matrix<double, TILE_SIZE, adabs::distributed::row_distribution<THREADS> > matrixT;
 	
-	std::vector< matrixT* > mas(all+2);
-	for (int i=0; i<all+2; ++i) {
+	std::vector< matrixT* > mas(adabs::all+2);
+	for (int i=0; i<adabs::all+2; ++i) {
 		mas[i] = new matrixT(SIZE, SIZE);
 		mas[i] -> use();
 		adabs::barrier_wait();
 	}
 	
-	std::cout << me << ": done creating" << std::endl;
+	std::cout << adabs::me << ": done creating" << std::endl;
 	adabs::barrier_wait();
 	
 	// init all mas with data
-	if (me==0) {
-		for (int maI=0; maI<all+2; ++maI) {
+	if (adabs::me==0) {
+		for (int maI=0; maI<adabs::all+2; ++maI) {
 			for (int b=0; b<SIZE/TILE_SIZE; ++b) {
 				for (int a=0; a<SIZE/TILE_SIZE; ++a) {
 				
@@ -109,19 +106,19 @@ int main(int argc, char *argv[]) {
 	
 	adabs::barrier_wait();
 	
-	for (int maI=1; maI<all+2; ++maI) {
+	for (int maI=1; maI<adabs::all+2; ++maI) {
 		mas[maI] -> enable_reuse(); 
 	}
 	
-	for (int maI=1; maI<all+2; ++maI) {
+	for (int maI=1; maI<adabs::all+2; ++maI) {
 		mas[maI] -> wait_for_reuse(); 
 	}
 	
 	adabs::barrier_wait();
 	
 	for (int i=0; i<50; ++i) {
-		matrixT &old = *mas[i%(all+2)];
-		matrixT &cur = *mas[(i+1)%(all+2)];
+		matrixT &old = *mas[i%(adabs::all+2)];
+		matrixT &cur = *mas[(i+1)%(adabs::all+2)];
 		
 		//std::cout << me << ": waiting for " << (i+1)%(all+2) << std::endl;
 		cur.wait_for_reuse();
@@ -129,7 +126,7 @@ int main(int argc, char *argv[]) {
 		
 		//std::cout << me << ": START " << i << " =================" << std::endl;
 		
-		compute_matrix(old, cur, me, all);
+		compute_matrix(old, cur);
 		
 		//std::cout << me << ": END " << i << " =================" << std::endl;
 		

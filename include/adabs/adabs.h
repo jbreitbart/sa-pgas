@@ -3,6 +3,16 @@
 namespace adabs {
 
 /**
+ * The number of the current node. Valid after adabs::init() was called.
+ */
+extern const int &me;
+
+/**
+ * The amount of nodes available. Valid after adabs::init() was called.
+ */
+extern const int &all;
+
+/**
  * Returns a barrier ID that can be used in the next GASNet barrier
  * call.
  */

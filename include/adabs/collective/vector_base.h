@@ -30,9 +30,10 @@ class vector_base {
 	public:
 		vector_base() {
 			using namespace adabs::tools;
+			using adabs::all;
 	
 			// call set_global_com on all nodes
-			const int all = gasnet_nodes();
+			// TODO we may make an exception for ourself
 			for (int i=0; i<all; ++i) {
 					GASNET_CALL(gasnet_AMRequestShort2(i,
 							                           adabs::impl::COLLECTIVE_VECTOR_GLOBAL_COM_SET,

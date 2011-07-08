@@ -56,11 +56,11 @@ class vector : public vector_base {
 
 		void set (const int x, const T& val, bool broadcast = true) {
 			using namespace adabs::tools;
+			using adabs::me;
+			using adabs::all;
 			
 			// will we broadcast the values to all processes
 			if (broadcast) {
-				const int all = gasnet_nodes();
-				int me = gasnet_mynode();
 				for (int i=0; i<all; ++i) {
 						if (i==me) continue;
 						GASNET_CALL(gasnet_AMRequestMedium3(i,

@@ -22,8 +22,6 @@ const int SIZE = 4096*2;
 const int THREADS = 4;
 
 
-
-
 /**
  * Fills the matrixes A and B with values.
  */
@@ -158,6 +156,9 @@ static void compute(T3& A, T& B, T& C, T& A1, T& B2, T2& V1, T2& V2, const int s
 }
 
 int main(int argc, char *argv[]) {
+	using adabs::me;
+	using adabs::all;
+	
 	timeval tv1, tv2;
 	std::vector<double> V1(SIZE), V2(SIZE);
 	for (int i=0; i<SIZE; ++i) {
@@ -170,9 +171,6 @@ int main(int argc, char *argv[]) {
 
 	omp_set_num_threads(THREADS);
 	
-	const int me = gasnet_mynode();
-	const int all = gasnet_nodes();
-
 	std::cout << "hello from " << me << " of " << all << std::endl;
 	
 	adabs::barrier_wait();

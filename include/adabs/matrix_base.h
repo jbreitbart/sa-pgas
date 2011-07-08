@@ -115,8 +115,8 @@ inline void matrix_init_get(gasnet_token_t token, gasnet_handlerarg_t arg0,
                               ) {
 	using namespace adabs::tools;
 	
-	const matrix_base * const that = get_ptr<const matrix_base>(arg0, arg1);
-	const matrix_base *source = get_ptr<const matrix_base>(arg2, arg3);
+	const matrix_base * const that   = get_ptr<const matrix_base>(arg0, arg1);
+	const matrix_base *       source = get_ptr<const matrix_base>(arg2, arg3);
 
 	const int x = that->get_size_x();
 	const int y = that->get_size_y();

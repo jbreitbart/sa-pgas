@@ -33,7 +33,7 @@ struct row_distribution {
 	}
 	
 	static int get_local_y(const int y) {
-		const int all = gasnet_nodes();
+		using adabs::all;
 		
 		//const int tile = y / tile_size;
 		const int result = y/row_size/all*row_size + (y%row_size);
@@ -45,13 +45,14 @@ struct row_distribution {
 	}
 	
 	static int get_node(const int x, const int y) {
-		const int all = gasnet_nodes();
+		using adabs::all;
+
 		
 		return (y/row_size)%all;
 	}
 	
 	static bool is_local(const int x, const int y) {
-		const int me = gasnet_mynode();
+		using adabs::me;
 		
 		return get_node(x,y) == me;
 	}
@@ -62,7 +63,7 @@ struct row_distribution {
 	
 	template <int tile_size>
 	static int get_local_size_y(const int size_y) {
-		const int all = gasnet_nodes();
+		using adabs::all;
 		const int nb_tiles = (size_y%tile_size == 0) ? (size_y/tile_size) : (size_y/tile_size+1);
 		
 		const int a = (nb_tiles%row_size) == 0 ? nb_tiles / row_size : nb_tiles / row_size+1;
@@ -154,16 +155,16 @@ class matrix : public matrix_base {
 		  : delete_counter(0), reuse_counter(0), _size_x(size_x), _size_y(size_y),
 		    _nb_tiles_x((get_size_x()%tile_size == 0) ? (get_size_x()/tile_size) : (get_size_x()/tile_size+1)),
 		    _nb_tiles_y((get_size_y()%tile_size == 0) ? (get_size_y()/tile_size) : (get_size_y()/tile_size+1)),
-		    _proxy_addrs(gasnet_nodes()),
-		    _mes(gasnet_nodes()),
-		    _proxies(gasnet_nodes())
+		    _proxy_addrs(adabs::all),
+		    _mes(adabs::all),
+		    _proxies(adabs::all)
 		{
 		    _local_data = new adabs::matrix<T, tile_size>(
 		                         distribution::get_local_size_x(size_x), 
 		                         distribution::template get_local_size_y<tile_size>(size_y) 
 		                                                  );
-			_proxy_addrs.set(gasnet_mynode(), _local_data->get_pgas_addr());
-			_mes.set(gasnet_mynode(), this);
+			_proxy_addrs.set(adabs::me, _local_data->get_pgas_addr());
+			_mes.set(adabs::me, this);
 			create_proxies();
 		}
 		
@@ -173,8 +174,8 @@ class matrix : public matrix_base {
 		 * reads to that matrix are completed.
 		 */
 		virtual ~matrix() {
-			const int me = gasnet_mynode();
-			const int all = gasnet_nodes();
+			using adabs::me;
+			using adabs::all;
 			for (int i=0; i<me; ++i) {
 				delete _proxies[i];
 			}
@@ -248,8 +249,8 @@ class matrix : public matrix_base {
 		
 		void delete_all() {
 			using namespace adabs::tools;
-			const int me = gasnet_mynode();
-			const int all = gasnet_nodes();
+			using adabs::me;
+			using adabs::all;
 			
 			// call real delete function on the remote matrix
 			for (int i=0; i<all; ++i) {
@@ -268,11 +269,11 @@ class matrix : public matrix_base {
 		
 		virtual bool remove(const bool local=true) {
 			using namespace adabs::tools;
-			const int me = gasnet_mynode();
+			using adabs::me;
+			using adabs::all;
 			
 			
 			if (me == 0) {
-				const int all = gasnet_nodes();
 				bool returnee;
 				#pragma omp critical
 				{
@@ -313,8 +314,8 @@ class matrix : public matrix_base {
 		void enable_reuse_all(const bool first_caller) {
 			// 1. call enable_reuse_all on all nodes
 			using namespace adabs::tools;
-			const int me = gasnet_mynode();
-			const int all = gasnet_nodes();
+			using adabs::me;
+			using adabs::all;
 			
 			// call real delete function on the remote matrix
 			if (first_caller) {
@@ -370,11 +371,11 @@ class matrix : public matrix_base {
 		
 		bool enable_reuse(const bool local=true) {
 			using namespace adabs::tools;
-			const int me = gasnet_mynode();
+			using adabs::me;
+			using adabs::all;
 			//std::cout << me << ": renable reuse called" << std::endl;
 			
 			if (me == 0) {
-				const int all = gasnet_nodes();
 				bool returnee;
 				#pragma omp critical
 				{ // TODO fix, use atomic op
@@ -430,8 +431,8 @@ class matrix : public matrix_base {
 		void operator=(const T1& rhs) {
 			using namespace adabs::tools;
 			
-			const int me = gasnet_mynode();
-			const int all = gasnet_nodes();
+			using adabs::me;
+			using adabs::all;
 			
 			std::cout << me << ": op= called" << std::endl;
 			
@@ -459,7 +460,7 @@ class matrix : public matrix_base {
 		}
 		
 		void remote_scatter_caller() {
-			const int me = gasnet_mynode();
+			using adabs::me;
 			std::cout << me << ": remote scatter called" << std::endl;
 			distribution::scatter_receiver(*_local_data);
 		}
@@ -468,8 +469,8 @@ class matrix : public matrix_base {
 
 template <typename T, int tile_size, typename distribution>
 void matrix<T, tile_size, distribution>::create_proxies() {
-	const int me = gasnet_mynode();
-	const int all = gasnet_nodes();
+	using adabs::me;
+	using adabs::all;
 	for (int i=0; i<me; ++i) {
 		_proxies[i] = new adabs::remote_matrix<T, tile_size>(_proxy_addrs.get(i));
 	}
@@ -482,8 +483,6 @@ template <typename T, int tile_size, typename distribution>
 T* matrix<T, tile_size, distribution>::get_tile_unitialized(const int x, const int y) {
 	const int local_x = distribution::get_local_x(x);
 	const int local_y = distribution::get_local_y(y);
-	
-	//const int me = gasnet_mynode();
 	
 	if (distribution::is_local(x,y)) {
 		//std::cout << me << ": local get tile uninit: " << x << ", " << y << ", " << local_x << ", " << local_y << std::endl;
@@ -498,9 +497,6 @@ template <typename T, int tile_size, typename distribution>
 void matrix<T, tile_size, distribution>::set_tile(T const * restrict const ptr, const int x, const int y) {
 	const int local_x = distribution::get_local_x(x);
 	const int local_y = distribution::get_local_y(y);
-	
-	//const int me = gasnet_mynode();
-	
 	
 	if (distribution::is_local(x,y)) {
 		//std::cout << me << ": local set tile: " << x << ", " << y << std::endl;
@@ -518,15 +514,6 @@ T const* matrix<T, tile_size, distribution>::get_tile(const int x, const int y) 
 	const int local_x = distribution::get_local_x(x);
 	const int local_y = distribution::get_local_y(y);
 	
-	#if 0
-	const int me = gasnet_mynode();
-
-	if (!distribution::is_local(x,y))
-		std::cout << me << ": remote get: " << x << ", " << y << ", " << local_x << ", " << local_y << std::endl;
-
-	else
-		std::cout << me << ": remote get: " << x << ", " << y << ", " << local_x << ", " << local_y << std::endl;
-	#endif
 	
 	if (distribution::is_local(x,y)) return _local_data->get_tile(local_x, local_y);
 	

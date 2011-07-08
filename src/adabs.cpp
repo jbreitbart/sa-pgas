@@ -8,6 +8,12 @@
 
 namespace adabs {
 
+static int _me = -1;
+static int _all = -1;
+
+const int &me = _me;
+const int &all = _all;
+
 // variables used with busy waiting
 // yes, I know, you think this is really bad, but we expect the other
 // thread to react quickly (after all, we target dedicated HPC systems)
@@ -51,8 +57,10 @@ void init(int *argc, char **argv[]) {
 	using namespace adabs::distributed::pgas;
 	
 	GASNET_CALL(gasnet_init (argc, argv))
-	
-	const int all = gasnet_nodes();
+	_all = gasnet_nodes();
+	_me  = gasnet_mynode();
+	 
+	//const int all = gasnet_nodes();
 	
 	vector_base::global_com = new vector_base*[all];
 	for (int i=0; i<all; ++i) vector_base::global_com[i] = 0; 

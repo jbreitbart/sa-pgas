@@ -130,6 +130,7 @@ static inline void compute_tile_bot(      double * restrict cur,
 
 template<typename T>
 static inline void compute_matrix(T &old_ma, T &cur_ma, int me, int all) {
+
 	int b = SIZE/TILE_SIZE/all * me + omp_get_thread_num();
 	const int end = (me+1==all) ? SIZE/TILE_SIZE-1 : SIZE/TILE_SIZE/all * (me+1);
 	const int jump = THREADS;
@@ -138,10 +139,8 @@ static inline void compute_matrix(T &old_ma, T &cur_ma, int me, int all) {
 	//const int end = SIZE/TILE_SIZE-1;
 	//const int jump = 	all*THREADS;
 	
-	//std::cout << "compute info. start: " << b << "; end: " << end << "; jump: " << jump << std::endl;
 	if (b==0) {
 		// sonderbehandlung obere zeile
-		//std::cout << me << ": b = " << b << std::endl;
 		{
 				  double * restrict cur = cur_ma.get_tile_unitialized(0, 0);
 
@@ -157,7 +156,6 @@ static inline void compute_matrix(T &old_ma, T &cur_ma, int me, int all) {
 		}
 		
 		for (int a=1; a<SIZE/TILE_SIZE-1; ++a) {
-			//std::cout << me << ": b = " << b << ", a = " << a << std::endl;
 			
 			      double * restrict cur     = cur_ma.get_tile_unitialized(a,0);
 			const double * restrict left    = cur_ma.get_tile(a-1,0); // new
@@ -189,7 +187,6 @@ static inline void compute_matrix(T &old_ma, T &cur_ma, int me, int all) {
 	}
 	
 	for (;b<end; b+=jump) {
-		//std::cout << me << ":l b = " << b << std::endl;
 		{
 				  double * restrict cur = cur_ma.get_tile_unitialized(0,b);
 			const double * restrict right   = old_ma.get_tile(1,b); // old
@@ -217,29 +214,21 @@ static inline void compute_matrix(T &old_ma, T &cur_ma, int me, int all) {
 			compute_tile_mid<0, 0, TILE_SIZE>(cur, cur_old, left, right);
 			compute_tile_bot<0, 0, TILE_SIZE>(cur, cur_old, left, right, bot);
 			
-			//std::cout << me << ":l b = " << b << ", a = " << a << std::endl;
 			cur_ma.set_tile(cur, a, b);
 		}
 		
 		{
 				  double * restrict cur = cur_ma.get_tile_unitialized(SIZE/TILE_SIZE-1 ,b);
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << " 1" << std::endl;
 			const double * restrict left    = cur_ma.get_tile(SIZE/TILE_SIZE-2, b); // new
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << " 2" << std::endl;
 			const double * restrict top  = old_ma.get_tile(SIZE/TILE_SIZE-1, b-1); // old
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << " 3" << std::endl;
 			const double * restrict bot  = old_ma.get_tile(SIZE/TILE_SIZE-1, b+1); // old
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << " 4" << std::endl;
 			const double * restrict cur_old = old_ma.get_tile(SIZE/TILE_SIZE-1, b); // old
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << " 5" << std::endl;
 			
 			compute_tile_top<RIGHT, 0, TILE_SIZE>(cur, cur_old, left, 0, top);
 			compute_tile_mid<RIGHT, 0, TILE_SIZE>(cur, cur_old, left, 0);
 			compute_tile_bot<RIGHT, 0, TILE_SIZE>(cur, cur_old, left, 0, bot);
 			
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << std::endl;
 			cur_ma.set_tile(cur, SIZE/TILE_SIZE-1, b);
-			//std::cout << me << ":ll b = " << b << ", a = " << SIZE/TILE_SIZE-1 << " - done" << std::endl;
 		}
 	}
 
@@ -323,15 +312,15 @@ static void compare(T1& B2, T2& B_seq, const int a, const int b) {
 }
 
 int main(int argc, char *argv[]) {
+	using adabs::me;
+	using adabs::all;
+	
 	timeval tv1, tv2;
 
 	adabs::init(&argc, &argv);
 	gasnet_set_waitmode(GASNET_WAIT_BLOCK);
 	
 	omp_set_num_threads(THREADS);
-	
-	const int me = gasnet_mynode();
-	const int all = gasnet_nodes();
 
 	std::cout << "hello from " << me << " of " << all << std::endl;
 	
@@ -375,12 +364,8 @@ int main(int argc, char *argv[]) {
 		cur.wait_for_reuse();
 		cur.use();
 		
-		//std::cout << me << ": START " << i << " =================" << std::endl;
-		
 		#pragma omp parallel
 		compute_matrix(old, cur, me, all);
-		
-		//std::cout << me << ": END " << i << " =================" << std::endl;
 		
 		old.enable_reuse();
 		
@@ -414,12 +399,8 @@ int main(int argc, char *argv[]) {
 		
 		cur.reuse();
 		
-		//std::cout << me << ": START " << i << " =================" << std::endl;
-		
 		#pragma omp parallel
 		compute_matrix(old, cur, 0, 1);
-		
-		//std::cout << me << ": END " << i << " =================" << std::endl;
 		
 		adabs::matrix<double, TILE_SIZE> *temp = oldptr;
 		oldptr = curptr;
