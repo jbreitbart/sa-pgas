@@ -20,6 +20,18 @@ extern const int &me;
 extern const int &all;
 
 /**
+ * A node next in line, for which communication may be faster than other
+ * arbitary nodes.
+ */
+extern const int &next;
+
+/**
+ * A node previous to you, for which communication may be faster than
+ * other arbitary nodes.
+ */
+extern const int &prev;
+
+/**
  * Returns a barrier ID that can be used in the next GASNet barrier
  * call.
  */

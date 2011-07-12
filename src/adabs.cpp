@@ -10,9 +10,13 @@ namespace adabs {
 
 static int _me = -1;
 static int _all = -1;
+static int _next = -1;
+static int _prev = -1;
 
 const int &me = _me;
 const int &all = _all;
+const int &next = _next;
+const int &prev = _prev;
 
 // variables used with busy waiting
 // yes, I know, you think this is really bad, but we expect the other
@@ -60,6 +64,8 @@ void init(int *argc, char **argv[]) {
 	GASNET_CALL(gasnet_init (argc, argv))
 	_all = gasnet_nodes();
 	_me  = gasnet_mynode();
+	_next = (me+1)%all;
+	_prev = (me+all-1)%all;
 	
 	vector_base::global_com = new vector_base*[all];
 	for (int i=0; i<all; ++i) vector_base::global_com[i] = 0; 
