@@ -1,7 +1,6 @@
 #pragma once
 
 #include <iostream>
-#include <gasnet.h>
 #include <pthread.h>
 
 #include "adabs.h"
@@ -9,7 +8,6 @@
 
 #include "adabs/impl/callbacks.h"
 
-#include "tools/tools.h"
 #include "tools/tile.h"
 #include "tools/ptr_divider.h"
 

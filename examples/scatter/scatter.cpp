@@ -3,9 +3,8 @@
 #include <omp.h>
 #include <pthread.h>
 
-#include "adabs/gasnet_config.h"
-
 #include "adabs/adabs.h"
+
 #include "adabs/matrix.h"
 #include "adabs/remote_matrix.h"
 
@@ -56,7 +55,6 @@ int main(int argc, char *argv[]) {
 	omp_set_num_threads(THREADS);
 	
 	std::cout << "hello from " << me << " of " << all << std::endl;
-	
 	adabs::barrier_wait();
 	
 	typedef adabs::distributed::matrix<double, TILE_SIZE, adabs::distributed::row_distribution<THREADS> > matrixT;

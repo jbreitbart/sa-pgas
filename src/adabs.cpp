@@ -1,10 +1,10 @@
-#include "adabs/gasnet_config.h"
+#include "adabs/adabs.h"
 
 #include "adabs/matrix_base.h"
 #include "adabs/collective/vector_base.h"
 #include "adabs/distributed/matrix_base.h"
 
-#include "adabs/tools/tools.h"
+#include "adabs/impl/remote_mem_management.h"
 
 namespace adabs {
 
@@ -51,6 +51,7 @@ static void* network(void *threadid) {
 
 void init(int *argc, char **argv[]) {
 	using namespace adabs::impl;
+	using namespace adabs::impl::pgas;
 	using namespace adabs::pgas;
 	using namespace adabs::collective;
 	using namespace adabs::collective::pgas;
@@ -59,8 +60,6 @@ void init(int *argc, char **argv[]) {
 	GASNET_CALL(gasnet_init (argc, argv))
 	_all = gasnet_nodes();
 	_me  = gasnet_mynode();
-	 
-	//const int all = gasnet_nodes();
 	
 	vector_base::global_com = new vector_base*[all];
 	for (int i=0; i<all; ++i) vector_base::global_com[i] = 0; 
@@ -110,6 +109,15 @@ void init(int *argc, char **argv[]) {
 	
 	callbacks[14].index = DISTRIBUTED_MATRIX_BASE_SCATTER;
 	callbacks[14].fnptr = (void (*)()) &scatter_matrix_caller;
+	
+	callbacks[15].index = MEMORY_MANAGEMENT_MALLOC;
+	callbacks[15].fnptr = (void (*)()) &remote_malloc_real;
+	
+	callbacks[16].index = MEMORY_MANAGEMENT_MALLOC_REPLY;
+	callbacks[16].fnptr = (void (*)()) &remote_malloc_real_reply;
+	
+	callbacks[17].index = MEMORY_MANAGEMENT_FREE;
+	callbacks[17].fnptr = (void (*)()) &remote_free_real;
 	
 	GASNET_CALL(gasnet_attach (callbacks, NUMBER_OF_CALLBACKS, gasnet_getMaxLocalSegmentSize(), 0))
 
