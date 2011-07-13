@@ -7,6 +7,7 @@
 
 #include "adabs/matrix.h"
 #include "adabs/remote_matrix.h"
+#include "adabs/pgas_ref.h"
 
 #include "adabs/collective/vector.h"
 
@@ -67,6 +68,22 @@ int main(int argc, char *argv[]) {
 	
 	std::cout << me << ": done creating" << std::endl;
 	adabs::barrier_wait();
+
+	adabs::collective::vector < adabs::pgas_ref<volatile int> > ex(all);
+	 
+	volatile int i=me;
+	
+	ex.set(me, adabs::pgas_ref<volatile int>(me, &i));
+	adabs::barrier_wait();
+	
+	adabs::pgas_ref<volatile int> remote_ref = const_cast< adabs::pgas_ref<volatile int>& > (ex.get(adabs::next));
+	
+	remote_ref = me;
+	
+	adabs::barrier_wait();
+	std::cout << me << ": i = " << i << std::endl;
+	adabs::barrier_wait();
+
 
 	if (me == 0) {
 		std::cout << me << ": start scatter" << std::endl;
