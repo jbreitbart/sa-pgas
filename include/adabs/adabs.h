@@ -3,8 +3,7 @@
 #include "adabs/gasnet_config.h"
 #include "tools/tools.h"
 
-#include "adabs/impl/remote_mem_management.h"
-#include "adabs/pgas_addr.h"
+//#include "adabs/impl/remote_mem_management.h"
 
 
 namespace adabs {
@@ -32,6 +31,11 @@ extern const int &next;
 extern const int &prev;
 
 /**
+ * Names the leader of the current group
+ */
+extern const bool &leader;
+
+/**
  * Returns a barrier ID that can be used in the next GASNet barrier
  * call.
  */
@@ -54,24 +58,5 @@ void exit(int exitcode);
  * barrier.
  */
 void barrier_wait();
-
-/**
- * Allocates @param size bytes at node @param node and returns a
- * valid pgas_addr.
- */
-template<typename T>
-pgas_addr<T> remote_malloc(const int node, const size_t size) {
-	return pgas_addr<T>(node,
-	                    static_cast<T*>(impl::remote_malloc(node, size*sizeof(T)))
-	                   );
-}
-
-/**
- * Frees memory on a remote node.
- */
-template<typename T>
-void remote_free(const pgas_addr<T> &addr) {
-	impl::remote_free(addr.get_node(), addr.get_ptr());
-}
 
 }

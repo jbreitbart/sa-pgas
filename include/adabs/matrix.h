@@ -1,12 +1,7 @@
 #pragma once
 
-#include "adabs/gasnet_config.h"
-
-#include "adabs/matrix_base.h"
-
-#include "pgas_addr.h"
-#include "tools/tools.h"
-#include "tools/tile.h"
+#include "adabs/adabs.h"
+#include "adabs/remote.h"
 
 namespace adabs {
 
@@ -15,29 +10,27 @@ namespace adabs {
  *
  * Note: You should not inheriate from this matrix.
  */
-template <typename T, int tile_size>
-class matrix : public matrix_base {
+template <typename T>
+class matrix {
 		/************************ TYPEDEFS ***************************/
 	private:
-		typedef tools::tile<T, tile_size> dataT;//tile;
-		//typedef std::pair<volatile int, tile> dataT;
+
+	public:
+		typedef typename T::value_type value_type;
 		
 	
 		/************************ VARIABLES **************************/
 	private:
-		dataT* _data;
-		const int _nb_tiles_x;
-		const int _nb_tiles_y;
-				
+		T _distri;
+
+		
 		/********************* CON/DESTRUCTOS ************************/
 	private:
-		/**
-		 * This is a constructor helper, allocating the memory required
-		 * for the matrix. Requires _size_{x|y} to be set.
-		 */
-		void alloc_memory();
 		
 	public:
+		matrix (const T& distri_cpy) : _distri(distri_cpy)
+		{}
+		
 		/**
 		 * Creates a matrix of size
 		 * @param size_x * @param size_y
@@ -45,49 +38,26 @@ class matrix : public matrix_base {
 		 * the size of the matrix is increased so it is a multiple of
 		 * tile_size
 		 */
-		matrix (const int size_x, const int size_y)
-		  : matrix_base(size_x, size_y),
-		    _nb_tiles_x((get_size_x()%tile_size == 0) ? (get_size_x()/tile_size) : (get_size_x()/tile_size+1)),
-		    _nb_tiles_y((get_size_y()%tile_size == 0) ? (get_size_y()/tile_size) : (get_size_y()/tile_size+1)) {
-			alloc_memory();
-		}
+		matrix (const int size_x, const int size_y, const int batch_size)
+		  : _distri(size_x, size_y, batch_size, batch_size)
+		{}
 		
 		/**
 		 * Copy constructor to create a copy of @param cpy
 		 */
-		matrix (const matrix<T, tile_size>& cpy) : matrix_base(cpy), _nb_tiles_x(cpy._nb_tiles_x), _nb_tiles_y(cpy._nb_tiles_y) {
-			alloc_memory();
-			
-			const int tiles_x = get_nb_tile_x();
-			const int tiles_y = get_nb_tile_y();
-			
-			for (int y=0; y<tiles_y; ++y) {
-				for (int x=0; x<tiles_x; ++x) {
-					if (cpy._data[y*_nb_tiles_x + x].flag == 1) {
-						copy_tile(cpy._data[y*_nb_tiles_x + x].data, x, y);
-					}
-				}
-			}
+		matrix (const matrix<T>& cpy) : _distri (cpy.get_distri().get_x(), cpy.get_distri().get_y(), cpy.get_distri().get_batch_size()) {
+			_distri = cpy.get_distri();
 		}
+		
 		
 		/**
 		 * Desctructor, make sure to not delete the object before(!) all
 		 * reads to that matrix are completed.
 		 */
-		~matrix() { delete[] _data; }
+		~matrix() { }
 		
 		/************************ FUNCTIONS **************************/
 	private:
-		void copy_tile(const restrict T *const source, const int x, const int y) {
-			restrict T *const target = _data[y*_nb_tiles_x + x].data;
-			
-			#pragma vector aligned nontemporal(target, source)
-			for (int i=0; i<tile_size*tile_size; ++i)
-				target[i] = source[i];
-			
-			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].flag, 1);
-		}
-
 
 	public:
 		/**
@@ -99,7 +69,7 @@ class matrix : public matrix_base {
 		 * identical to a pointer returned by get_tile_unitialized
 		 * no data will be copied.
 		 */
-		void set_tile(T const * restrict const ptr, const int x, const int y);
+		void set_tile(const int x, const int y, typename T::value_type * ptr);
 		
 		/**
 		 * Returns a pointer to the tile with the coordinated
@@ -107,7 +77,7 @@ class matrix : public matrix_base {
 		 * . In case the values are not yet written to the matrix, the
 		 * calling thread will sleep until the value is returned.
 		 */
-		T const* get_tile(const int x, const int y) const;
+		typename T::value_type const* get_tile(const int x, const int y) const;
 		
 		/**
 		 * Returns the pointer to the matrix internal tile with the
@@ -116,96 +86,38 @@ class matrix : public matrix_base {
 		 * so one can update the matrix in place. You must(!) still call
 		 * set_tile() for this matrix tile!
 		 */
-		T* get_tile_unitialized(const int x, const int y);
+		typename T::value_type* get_tile_unitialized(const int x, const int y);
 		
 		/**
 		 * Returns the tile size
 		 */
-		static int get_tile_size() {return tile_size;}	
-
-		/**
-		 * Returns the number of tiles in x-dimension
-		 */
-		int get_nb_tile_x() const {
-			return _nb_tiles_x;
-		}
-		
-		/**
-		 * Returns the number of tiles in y-dimension
-		 */
-		int get_nb_tile_y() const {
-			return _nb_tiles_y;
-		}
+		int get_tile_size() const { return _distri.get_batch_size_x(); }
 		
 		/**
 		 * Returns a pgas address for the current matrix
 		 */
-		pgas_addr <matrix<T, tile_size> > get_pgas_addr() {
-			return pgas_addr < matrix<T, tile_size> > (gasnet_mynode(), this);
-		}
-
-		void* pgas_get(const int x, const int y) const {
-			return (void*) get_tile(x, y);
-		}
-		
-		void pgas_mark(const int x, const int y) {
-			//std::cout << gasnet_mynode() << " " << "pgas mark " << y*_nb_tiles_x + x << " - " 
-			// << " " << &_data[y*_nb_tiles_x + x].data[0] << std::endl;
-			__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].flag, 1);
-			//std::cout << gasnet_mynode() << " new value: " << _data[y*_nb_tiles_x + x].flag << std::endl;
-		}
-		
-		int pgas_tile_size() const { return get_tile_size()*get_tile_size()*sizeof(T); }
-		
-		void reuse() {
-			const int tiles_x = get_nb_tile_x();
-			const int tiles_y = get_nb_tile_y();
-			
-			for (int y=0; y<tiles_y * tiles_x; ++y) {
-				__sync_lock_test_and_set (&_data[y].flag, 0);
-			}
-
+		matrix< remote <typename T::value_type> >make_remote() const {
+			return matrix<remote <typename T::value_type> >(_distri.make_remote());
 		}
 
 		bool is_local(const int x, const int y) {
-			return true;
+			return _distri.is_local(x,y);
 		}		
 };
 
-template <typename T, int tile_size>
-void matrix<T, tile_size>::alloc_memory() {
-	const int tiles_x = get_nb_tile_x();
-	const int tiles_y = get_nb_tile_y();
-	
-	_data = new dataT[tiles_y*tiles_x];
-	pgas_set_data_ptr((void*)_data);
+template <typename T>
+typename T::value_type* matrix<T>::get_tile_unitialized(const int x, const int y) {
+	return _distri.get_data_unitialized(x,y);
 }
 
-template <typename T, int tile_size>
-T* matrix<T, tile_size>::get_tile_unitialized(const int x, const int y) {
-	return _data[y*_nb_tiles_x + x].data;
+template <typename T>
+void matrix<T>::set_tile(const int x, const int y, typename T::value_type * ptr) {
+	_distri.set_data(x, y, ptr);
 }
 
-template <typename T, int tile_size>
-void matrix<T, tile_size>::set_tile(T const * restrict const ptr, const int x, const int y) {
-	if (_data[y*_nb_tiles_x + x].data != ptr) {
-		throw "Error";
-	}
-
-	__sync_lock_test_and_set (&_data[y*_nb_tiles_x + x].flag, 1);
-	__sync_synchronize();
-}
-
-template <typename T, int tile_size>
-T const* matrix<T, tile_size>::get_tile(const int x, const int y) const {
-	//std::cout << gasnet_mynode() << " " << "local get_tile " << x << " " << y << " - " << &_data[y*_nb_tiles_x + x].flag << std::endl;
-	//std::cout << gasnet_mynode() << " " << _data[y*_nb_tiles_x + x].flag << " - " << &_data[y*_nb_tiles_x + x].flag << std::endl;
-	
-	volatile int *reader = &_data[y*_nb_tiles_x + x].flag;
-	while (*reader == 0){}
-	//GASNET_BLOCKUNTIL(_data[y*_nb_tiles_x + x].flag != 0);
-	
-	return _data[y*_nb_tiles_x + x].data;
+template <typename T>
+typename T::value_type const* matrix<T>::get_tile(const int x, const int y) const {
+	return _distri.get_data(x,y);
 }
 
 }

@@ -1,5 +1,8 @@
 PROJECT(adabs)
 
+# GNU Toolchain compile options
+#ADD_DEFINITIONS(-g -O2 -fopenmp)
+
 #####################
 # setup intel environment
 SET(CMAKE_AR /opt/intel/bin/xiar)
@@ -13,8 +16,8 @@ SET(CMAKE_CXX_COMPILER /opt/openmpi/bin/mpiCC)
 SET(CMAKE_C_COMPILER /opt/openmpi/bin/mpicc)
 
 # Compiler options
-#ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
-ADD_DEFINITIONS(-Wall -g0 -fast -Wno-unused-function -openmp)
+ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
+#ADD_DEFINITIONS(-Wall -g0 -fast -Wno-unused-function -openmp)
 #####################
 
 SET(LIBs -lrt -ladabs -openmp)
@@ -31,12 +34,12 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/lib ${CMAKE_CURRENT_
 #SET(GASLIBs -lgasnet-smp-seq -lgasnet_tools-seq -lamudp ${LIBs})
 
 # UDP conduit
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
-SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp ${LIBs})
+#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
+#SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp ${LIBs})
 
 # MPI conduit
-#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
-#SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi ${LIBs})
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
+SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi ${LIBs})
 
 
 # if you don want the full compiler output, uncomment the following line

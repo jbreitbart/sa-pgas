@@ -1,10 +1,15 @@
 #include "adabs/adabs.h"
 
-#include "adabs/matrix_base.h"
-#include "adabs/collective/vector_base.h"
-#include "adabs/distributed/matrix_base.h"
+//#include "adabs/matrix_base.h"
+#include "adabs/pgas_addr.h"
+//#include "adabs/distributed/matrix_base.h"
 
-#include "adabs/impl/remote_mem_management.h"
+//#include "adabs/impl/remote_mem_management.h"
+
+#include "adabs/collective/allocator.h"
+#include "adabs/collective/pgas_addr.h"
+
+#include <cassert>
 
 namespace adabs {
 
@@ -12,11 +17,13 @@ static int _me = -1;
 static int _all = -1;
 static int _next = -1;
 static int _prev = -1;
+static bool _leader = false;
 
 const int &me = _me;
 const int &all = _all;
 const int &next = _next;
 const int &prev = _prev;
+const bool &leader = _leader;
 
 // variables used with busy waiting
 // yes, I know, you think this is really bad, but we expect the other
@@ -37,9 +44,12 @@ void barrier_wait() {
 }
 
 void exit(const int errorcode) {
+	barrier_wait();
 	__sync_lock_test_and_set (&thread_end, 1);
 	while (thread_end != 2) {}
 	barrier_wait();
+	
+	delete[] adabs::impl::callbacks;
 	
 	gasnet_exit(0);
 }
@@ -55,76 +65,93 @@ static void* network(void *threadid) {
 
 void init(int *argc, char **argv[]) {
 	using namespace adabs::impl;
-	using namespace adabs::impl::pgas;
 	using namespace adabs::pgas;
 	using namespace adabs::collective;
 	using namespace adabs::collective::pgas;
-	using namespace adabs::distributed::pgas;
 	
 	GASNET_CALL(gasnet_init (argc, argv))
 	_all = gasnet_nodes();
 	_me  = gasnet_mynode();
 	_next = (me+1)%all;
 	_prev = (me+all-1)%all;
+	_leader = (me == 0);
 	
-	vector_base::global_com = new vector_base*[all];
-	for (int i=0; i<all; ++i) vector_base::global_com[i] = 0; 
+	int counter = 0;
 
 	callbacks = new gasnet_handlerentry_t[NUMBER_OF_CALLBACKS];
-	callbacks[0].index = MATRIX_BASE_INIT_GET;
-	callbacks[0].fnptr = (void (*)()) &matrix_init_get;
+	/*callbacks[counter].index = MATRIX_BASE_INIT_GET;
+	callbacks[counter++].fnptr = (void (*)()) &matrix_init_get;
 	
-	callbacks[1].index = MATRIX_BASE_INIT_SET;
-	callbacks[1].fnptr = (void (*)()) &matrix_init_set;
+	callbacks[counter].index = MATRIX_BASE_INIT_SET;
+	callbacks[counter++].fnptr = (void (*)()) &matrix_init_set;
 
-	callbacks[2].index = COLLECTIVE_VECTOR_GLOBAL_COM_SET;
-	callbacks[2].fnptr = (void (*)()) &set_global_com;
+	callbacks[counter].index = MATRIX_BASE_SET;
+	callbacks[counter++].fnptr = (void (*)()) &remote_set_matrix_tile;
+	
+	callbacks[counter].index = MATRIX_BASE_GET;
+	callbacks[counter++].fnptr = (void (*)()) &remote_get_matrix_tile;
 
-	callbacks[3].index = COLLECTIVE_VECTOR_SET;
-	callbacks[3].fnptr = (void (*)()) &remote_set_vector_element;
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_DELETE;
+	callbacks[counter++].fnptr = (void (*)()) &delete_matrix;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_REMOVE;
+	callbacks[counter++].fnptr = (void (*)()) &remove_matrix;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_DELETE_ALL;
+	callbacks[counter++].fnptr = (void (*)()) &delete_all_matrix;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_ENABLE_REUSE_ALL;
+	callbacks[counter++].fnptr = (void (*)()) &reuse_all_matrix;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_REUSE;
+	callbacks[counter++].fnptr = (void (*)()) &reuse_matrix;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_REUSE_REPLY;
+	callbacks[counter++].fnptr = (void (*)()) &reuse_matrix_reply;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_ENABLE_REUSE_ALL_REPLY;
+	callbacks[counter++].fnptr = (void (*)()) &reuse_all_matrix_reply;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_RESET_USE_FLAG;
+	callbacks[counter++].fnptr = (void (*)()) &remote_reset_reuse_all_remote_counter;
+	
+	callbacks[counter].index = DISTRIBUTED_MATRIX_BASE_SCATTER;
+	callbacks[counter++].fnptr = (void (*)()) &scatter_matrix_caller;*/
+	
+/*	callbacks[counter].index = MEMORY_MANAGEMENT_MALLOC;
+	callbacks[counter++].fnptr = (void (*)()) &remote_malloc_real;
+	
+	callbacks[counter].index = MEMORY_MANAGEMENT_MALLOC_REPLY;
+	callbacks[counter++].fnptr = (void (*)()) &remote_malloc_real_reply;
+	
+	callbacks[counter].index = MEMORY_MANAGEMENT_FREE;
+	callbacks[counter++].fnptr = (void (*)()) &remote_free_real;*/
+	
+	callbacks[counter].index = PGAS_ADDR_SET;
+	callbacks[counter++].fnptr = (void (*)()) &adabs::pgas::pgas_addr_remote_set;
+	
+	callbacks[counter].index = PGAS_ADDR_GET;
+	callbacks[counter++].fnptr = (void (*)()) &pgas_addr_remote_get;
+	
+	callbacks[counter].index = COLLECTIVE_ALLOC_BROADCAST;
+	callbacks[counter++].fnptr = (void (*)()) &add_to_stack;
+	
+	callbacks[counter].index = REMOTE_COLLECTIVE_ALLOC;
+	callbacks[counter++].fnptr = (void (*)()) &remote_allocate_real;
+	
+	callbacks[counter].index = REMOTE_COLLECTIVE_FREE;
+	callbacks[counter++].fnptr = (void (*)()) &remote_free_real;
+	
+	callbacks[counter].index = REMOTE_COLLECTIVE_ALLOC_REPLY;
+	callbacks[counter++].fnptr = (void (*)()) &remote_malloc_real_reply;
+	
+	callbacks[counter].index = COLLECTIVE_PGAS_ADDR_SET;
+	callbacks[counter++].fnptr = (void (*)()) &adabs::collective::pgas::pgas_addr_remote_set;
+	
+	assert(counter == NUMBER_OF_CALLBACKS);
 
-	callbacks[4].index = MATRIX_BASE_SET;
-	callbacks[4].fnptr = (void (*)()) &remote_set_matrix_tile;
-	
-	callbacks[5].index = MATRIX_BASE_GET;
-	callbacks[5].fnptr = (void (*)()) &remote_get_matrix_tile;
 
-	callbacks[6].index = DISTRIBUTED_MATRIX_BASE_DELETE;
-	callbacks[6].fnptr = (void (*)()) &delete_matrix;
-	
-	callbacks[7].index = DISTRIBUTED_MATRIX_BASE_REMOVE;
-	callbacks[7].fnptr = (void (*)()) &remove_matrix;
-	
-	callbacks[8].index = DISTRIBUTED_MATRIX_BASE_DELETE_ALL;
-	callbacks[8].fnptr = (void (*)()) &delete_all_matrix;
-	
-	callbacks[9].index = DISTRIBUTED_MATRIX_BASE_ENABLE_REUSE_ALL;
-	callbacks[9].fnptr = (void (*)()) &reuse_all_matrix;
-	
-	callbacks[10].index = DISTRIBUTED_MATRIX_BASE_REUSE;
-	callbacks[10].fnptr = (void (*)()) &reuse_matrix;
-	
-	callbacks[11].index = DISTRIBUTED_MATRIX_BASE_REUSE_REPLY;
-	callbacks[11].fnptr = (void (*)()) &reuse_matrix_reply;
-	
-	callbacks[12].index = DISTRIBUTED_MATRIX_BASE_ENABLE_REUSE_ALL_REPLY;
-	callbacks[12].fnptr = (void (*)()) &reuse_all_matrix_reply;
-	
-	callbacks[13].index = DISTRIBUTED_MATRIX_BASE_RESET_USE_FLAG;
-	callbacks[13].fnptr = (void (*)()) &remote_reset_reuse_all_remote_counter;
-	
-	callbacks[14].index = DISTRIBUTED_MATRIX_BASE_SCATTER;
-	callbacks[14].fnptr = (void (*)()) &scatter_matrix_caller;
-	
-	callbacks[15].index = MEMORY_MANAGEMENT_MALLOC;
-	callbacks[15].fnptr = (void (*)()) &remote_malloc_real;
-	
-	callbacks[16].index = MEMORY_MANAGEMENT_MALLOC_REPLY;
-	callbacks[16].fnptr = (void (*)()) &remote_malloc_real_reply;
-	
-	callbacks[17].index = MEMORY_MANAGEMENT_FREE;
-	callbacks[17].fnptr = (void (*)()) &remote_free_real;
-	
+
 	GASNET_CALL(gasnet_attach (callbacks, NUMBER_OF_CALLBACKS, gasnet_getMaxLocalSegmentSize(), 0))
 
 	pthread_t network_thread;
