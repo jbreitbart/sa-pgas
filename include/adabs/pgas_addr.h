@@ -26,8 +26,28 @@ inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes
                                   gasnet_handlerarg_t arg0, // data pointer
                                   gasnet_handlerarg_t arg1  // data pointer
                                  );
+inline void pgas_addr_set_uninit(gasnet_token_t token,
+                                  gasnet_handlerarg_t arg0, // flag pointer
+                                  gasnet_handlerarg_t arg1, // flag pointer
+                                  gasnet_handlerarg_t arg2, // stride between flags
+                                  gasnet_handlerarg_t arg3, // nb of flags
+                                  gasnet_handlerarg_t arg4, // done marker pointer
+                                  gasnet_handlerarg_t arg5  // done marker pointer
+                                );
+inline void pgas_addr_check_get_all(gasnet_token_t token,
+                                  gasnet_handlerarg_t arg0, // flag pointer
+                                  gasnet_handlerarg_t arg1, // flag pointer
+                                  gasnet_handlerarg_t arg2, // stride between flags
+                                  gasnet_handlerarg_t arg3, // nb of flags
+                                  gasnet_handlerarg_t arg4, // done marker pointer
+                                  gasnet_handlerarg_t arg5  // done marker pointer
+                                );
+// TODO move in different file (incl. implementation)
+inline void done_marker(gasnet_token_t token,
+                                  gasnet_handlerarg_t arg0, // done marker pointer
+                                  gasnet_handlerarg_t arg1  // done marker pointer
+                                );
 }
-
 /**
  * A address in our pgas world
  */
@@ -36,6 +56,7 @@ class pgas_addr {
 	/******************* TYPEDEFS ******************/
 	public:
 		typedef T value_type;
+		enum {EMPTY, WRITTING, REQUESTED, FULL};
 	
 	/******************* VARIABLES *****************/
 	private:
@@ -107,6 +128,7 @@ class pgas_addr {
 			
 			while (!is_available()) {
 				// wait until data is ready
+				__sync_synchronize();
 			}
 			
 			return _cache;
@@ -202,6 +224,24 @@ class pgas_addr {
 			return _orig_node;
 		}
 		
+		int get_batch_size() const {
+			return _batch_size;
+		}
+		
+		int* get_orig_flag() const {
+			//std::cout << "orig_ptr = " << _orig_ptr << std::endl;
+			return (int*)(_orig_ptr);
+		}
+		
+		int* get_flag() const {
+			assert(_cache!=0);
+			int a = tools::alignment<T>::val();
+			if (a<sizeof(int)) a = sizeof(int);
+			
+			//std::cout << "flag is at " << (int*)((char*)_cache - a) << std::endl;
+			return (int*)((char*)_cache - a);
+		}
+		
 	private:
 		void set_cache() const {
 			if (is_local()) {
@@ -218,14 +258,6 @@ class pgas_addr {
 			}
 		}
 		
-		int* get_flag() const {
-			assert(_cache!=0);
-			int a = tools::alignment<T>::val();
-			if (a<sizeof(int)) a = sizeof(int);
-			
-			return (int*)((char*)_cache - a);
-		}
-		
 		T* get_data_ptr() const {
 			return _cache;
 		}
@@ -233,42 +265,42 @@ class pgas_addr {
 		// check if flag is set to 1
 		bool is_writing() const {
 			volatile int *reader = get_flag();
-			return (*reader == 1);
+			return (*reader == WRITTING);
 		}
 		
 		// check if flag is set to 2
 		bool is_requested() const {
 			volatile int *reader = get_flag();
-			return (*reader == 2);
+			return (*reader == REQUESTED);
 		}
 		
 		// check if flag is set to 3
 		bool is_available() const {
 			volatile int *reader = get_flag();
-			return (*reader == 3);
+			return (*reader == FULL);
 		}
 		
 		// check and set flag to 1
 		bool writing() const {
 			volatile int *ptr = get_flag();
 			//std::cout << me << ": writting flag " << get_flag() << " - " << *ptr << std::endl;
-			return __sync_bool_compare_and_swap(ptr, 0, 1);
+			return __sync_bool_compare_and_swap(ptr, EMPTY, WRITTING);
 		}
 		
 		// check and set flag to 2
 		bool request() const {
 			volatile int *ptr = get_flag();
 			//std::cout << me << ": request flag " << get_flag() << " - " << *ptr << " set to 2 " << std::endl; 
-			return __sync_bool_compare_and_swap(ptr, 0, 2);
+			return __sync_bool_compare_and_swap(ptr, EMPTY, REQUESTED);
 		}
 		
 		// check and set flag to 3
 		bool available() const {
 			volatile int *ptr = get_flag();
 			//std::cout << me << ": avail 1 flag " << get_flag() << " - " << *ptr << std::endl;
-			int val = __sync_lock_test_and_set(ptr, 3);
+			int val = __sync_lock_test_and_set(ptr, FULL);
 			//std::cout << me << ": avail 2 flag " << *ptr << std::endl;
-			return (val == 1 || val == 2);
+			return (val == WRITTING || val == REQUESTED);
 		}
 		
 	/****************** FRIEND CLASS **********************/
@@ -276,6 +308,129 @@ class pgas_addr {
 };
 
 namespace pgas {
+
+inline void pgas_addr_set_uninit(gasnet_token_t token,
+                                  gasnet_handlerarg_t arg0, // flag pointer
+                                  gasnet_handlerarg_t arg1, // flag pointer
+                                  gasnet_handlerarg_t arg2, // stride between flags
+                                  gasnet_handlerarg_t arg3, // nb of flags
+                                  gasnet_handlerarg_t arg4, // done marker pointer
+                                  gasnet_handlerarg_t arg5  // done marker pointer
+                                ) {
+	using namespace adabs::tools;
+	int *flag  = get_ptr<int>(arg0, arg1);
+	
+	//std::cout << "flag should be at " << flag << std::endl;
+	
+	for (int i=0; i<arg3; ++i) {
+		int writting = __sync_val_compare_and_swap(flag, adabs::pgas_addr<void>::EMPTY, adabs::pgas_addr<void>::WRITTING);
+		assert(writting==adabs::pgas_addr<void>::EMPTY);
+		flag = (int*)((char*)flag + arg2);
+	}
+	
+	int *return_marker  = get_ptr<int>(arg4, arg5);
+	if (return_marker != 0) {
+	GASNET_CALL(gasnet_AMReplyShort2(token,
+								       adabs::impl::SET_RETURN_MARKER,
+								       arg4,
+								       arg5
+								      )
+		      )
+	}
+}
+
+/**
+ * Pthread argument class
+ */
+struct pgas_addr_check_get_all_thread_arg {
+	volatile int *flag;
+	gasnet_handlerarg_t arg2;
+	gasnet_handlerarg_t arg3;
+	gasnet_handlerarg_t arg4;
+	gasnet_handlerarg_t arg5;
+	gasnet_node_t dest;
+	
+	
+	pgas_addr_check_get_all_thread_arg(volatile int *_flag, 
+	                                   gasnet_handlerarg_t _arg2,
+	                                   gasnet_handlerarg_t _arg3,
+	                                   gasnet_handlerarg_t _arg4,
+	                                   gasnet_handlerarg_t _arg5,
+	                                   gasnet_node_t _dest
+	                                  ) : flag(_flag),
+	                                      arg2(_arg2),
+	                                      arg3(_arg3),
+	                                      arg4(_arg4),
+	                                      arg5(_arg5),
+	                                      dest(_dest) {}
+};
+
+inline void* pgas_addr_check_get_all_thread(void *threadarg) {
+	using namespace adabs::tools;
+	
+	pgas_addr_check_get_all_thread_arg* arg = (pgas_addr_check_get_all_thread_arg*)threadarg;
+	
+	for (int i=0; i<arg->arg3; ++i) {
+		std::cout << i << " at " << (int*)arg->flag << std::endl;
+		
+		// wait until flag is set
+		volatile int* reader = arg->flag;
+		while (*reader != adabs::pgas_addr<void>::FULL) {}
+		
+		arg->flag = (volatile int*)((char*)arg->flag + arg->arg2);
+	}
+	
+	int *return_marker  = get_ptr<int>(arg->arg4, arg->arg5);
+	std::cout << "set done flag at " << return_marker << std::endl;
+	if (return_marker != 0) {
+		GASNET_CALL(gasnet_AMRequestShort2(arg->dest,
+										   adabs::impl::SET_RETURN_MARKER,
+										   arg->arg4,
+										   arg->arg5
+										  )
+				  )
+	}
+	           
+	delete arg;
+	
+	pthread_exit(0);
+}
+
+inline void pgas_addr_check_get_all(gasnet_token_t token,
+                                  gasnet_handlerarg_t arg0, // flag pointer
+                                  gasnet_handlerarg_t arg1, // flag pointer
+                                  gasnet_handlerarg_t arg2, // stride between flags
+                                  gasnet_handlerarg_t arg3, // nb of flags
+                                  gasnet_handlerarg_t arg4, // done marker pointer
+                                  gasnet_handlerarg_t arg5  // done marker pointer
+                                ) {
+	using namespace adabs::tools;
+	volatile int *flag  = get_ptr<volatile int>(arg0, arg1);
+	gasnet_node_t src;
+	GASNET_CALL( gasnet_AMGetMsgSource(token, &src) )
+	
+	pgas_addr_check_get_all_thread_arg *para = new pgas_addr_check_get_all_thread_arg(flag, arg2, arg3, arg4, arg5, src);
+	
+	pthread_t thread_id;
+	pthread_attr_t attrb;
+	pthread_attr_init(&attrb);
+	pthread_attr_setdetachstate(&attrb, PTHREAD_CREATE_DETACHED);
+	pthread_create(&thread_id, &attrb, pgas_addr_check_get_all_thread, (void*) para);
+
+}
+
+inline void done_marker(gasnet_token_t token,
+                                  gasnet_handlerarg_t arg0, // done marker pointer
+                                  gasnet_handlerarg_t arg1  // done marker pointer
+                                ) {
+	using namespace adabs::tools;
+	int *return_marker  = get_ptr<int>(arg0, arg1);
+	int val = __sync_lock_test_and_set(return_marker, 1);
+	//std::cout << "changed " << return_marker << std::endl;
+	assert (val == 0);
+}
+
+
 inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes,
                                   gasnet_handlerarg_t arg0, // data pointer
                                   gasnet_handlerarg_t arg1  // data pointer
@@ -288,9 +443,8 @@ inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes
 	
 	__sync_synchronize();
 	
-	int val = __sync_lock_test_and_set(flag, 3);
-	assert(val != 3);
-
+	int val = __sync_lock_test_and_set(flag, adabs::pgas_addr<void>::FULL);
+	assert(val != adabs::pgas_addr<void>::FULL);
 }
 
 
@@ -325,7 +479,7 @@ inline void* remote_get_thread(void *threadarg) {
 	volatile int* reader = (volatile int*)arg->local;
 	//std::cout << me << ": " << arg->local << std::endl;
 	//std::cout << me << ": " << *reader << std::endl;
-	while (*reader != 3) {}
+	while (*reader != adabs::pgas_addr<void>::FULL) {}
 	
 	__sync_synchronize();
 	

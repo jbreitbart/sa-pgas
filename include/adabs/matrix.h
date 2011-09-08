@@ -45,8 +45,7 @@ class matrix {
 		/**
 		 * Copy constructor to create a copy of @param cpy
 		 */
-		matrix (const matrix<T>& cpy) : _distri (cpy.get_distri().get_x(), cpy.get_distri().get_y(), cpy.get_distri().get_batch_size()) {
-			_distri = cpy.get_distri();
+		matrix (const matrix<T>& cpy) : _distri (cpy.get_distri()) {
 		}
 		
 		
@@ -97,12 +96,23 @@ class matrix {
 		 * Returns a pgas address for the current matrix
 		 */
 		matrix< remote <typename T::value_type> >make_remote() const {
+			_distri.get_data().get_orig_flag();
 			return matrix<remote <typename T::value_type> >(_distri.make_remote());
 		}
 
 		bool is_local(const int x, const int y) {
 			return _distri.is_local(x,y);
-		}		
+		}
+		
+		const T& get_distri() const {
+			return _distri;
+		}
+		
+		template <typename T2>
+		matrix<T>& operator=(const matrix<T2>& rhs) {
+			_distri = rhs.get_distri();
+			return *this;
+		}
 };
 
 template <typename T>

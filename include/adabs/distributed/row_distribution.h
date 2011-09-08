@@ -82,8 +82,30 @@ class row_distribution {
 			const_cast< adabs::remote<T>& >(_remote.get(node)).set_data(get_local_x(x), get_local_y(y), ptr);
 		}
 		
+		void fill(const int x, const int y, pgas_addr<T> ptr, const int nb_elements) {
+			assert (x%_batch_size_x == 0);
+			assert (y%_batch_size_y == 0);
+			assert(_batch_size_x * _batch_size_y == ptr.get_batch_size());
+			assert((_batch_size_x * _batch_size_y)%nb_of_elements == 0);
+			assert(is_local(x,y));
+			// the row of x is local for our distribution
+
+			const int batches = nb_elements / _batch_size_x / _batch_size_y;
+			
+			{
+				int temp = batches - (_local.get_size_x()-x)/_batch_size_x;
+				for (int j=y+1; temp>0; temp-=_local.get_size_x()/_batch_size_x, j+=_batch_size_y) {
+					assert (is_local(x, j));
+				}
+			}
+			
+			const int offset  = get_offset(x,y);
+			
+			adabs::memcpy(_local+offset, ptr, batches);
+		}
 		
 	private:
+		
 		int local_size_y() const {
 			const int y_t = (_y%adabs::all == 0) ? _y/adabs::all : _y/adabs::all+1;
 			

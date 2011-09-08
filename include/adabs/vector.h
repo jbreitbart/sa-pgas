@@ -66,6 +66,10 @@ class vector {
 			return _distri.size_x();
 		}
 
+		template <typename T>
+		vector<T>& operator=(const vector<T>& rhs) {
+			return _distri = rhs._distri;
+		}
 };
 
 }

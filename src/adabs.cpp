@@ -2,6 +2,7 @@
 
 //#include "adabs/matrix_base.h"
 #include "adabs/pgas_addr.h"
+#include "adabs/memcpy.h"
 //#include "adabs/distributed/matrix_base.h"
 
 //#include "adabs/impl/remote_mem_management.h"
@@ -76,6 +77,13 @@ void init(int *argc, char **argv[]) {
 	_prev = (me+all-1)%all;
 	_leader = (me == 0);
 	
+	#ifdef USE_MPI_COLLETIVES
+	if (leader)
+		std::cout << "Adabs uses MPI collective operations" << std::endl << std::endl;
+	#endif
+	
+	//std::cout << "ID " << me << " runs on node " << gasnet_gethostname() << std::endl;
+	
 	int counter = 0;
 
 	callbacks = new gasnet_handlerentry_t[NUMBER_OF_CALLBACKS];
@@ -126,6 +134,15 @@ void init(int *argc, char **argv[]) {
 	
 	callbacks[counter].index = MEMORY_MANAGEMENT_FREE;
 	callbacks[counter++].fnptr = (void (*)()) &remote_free_real;*/
+
+	callbacks[counter].index = MEMCPY;
+	callbacks[counter++].fnptr = (void (*)()) &adabs::pgas::pgas_memcpy;
+	
+	callbacks[counter].index = PGAS_ADDR_CHECK_GET_ALL;
+	callbacks[counter++].fnptr = (void (*)()) &pgas_addr_check_get_all;
+	
+	callbacks[counter].index = PGAS_ADDR_GET_UNINIT;
+	callbacks[counter++].fnptr = (void (*)()) &adabs::pgas::pgas_addr_set_uninit;
 	
 	callbacks[counter].index = PGAS_ADDR_SET;
 	callbacks[counter++].fnptr = (void (*)()) &adabs::pgas::pgas_addr_remote_set;
@@ -147,6 +164,9 @@ void init(int *argc, char **argv[]) {
 	
 	callbacks[counter].index = COLLECTIVE_PGAS_ADDR_SET;
 	callbacks[counter++].fnptr = (void (*)()) &adabs::collective::pgas::pgas_addr_remote_set;
+	
+	callbacks[counter].index = SET_RETURN_MARKER;
+	callbacks[counter++].fnptr = (void (*)()) &adabs::pgas::done_marker;
 	
 	assert(counter == NUMBER_OF_CALLBACKS);
 

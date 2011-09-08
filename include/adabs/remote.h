@@ -2,8 +2,13 @@
 
 #include "adabs/adabs.h"
 #include "adabs/pgas_addr.h"
+#include "adabs/memcpy.h"
+#include "adabs/tools/ptr_divider.h"
 
 namespace adabs {
+
+template <typename T>
+class local;
 
 /**
  * Maybe BYTEWISE COPIED after the copy constructor!
@@ -33,6 +38,7 @@ class remote {
 		 {
 			assert (_x%_batch_size_x == 0);
 			assert (_y%_batch_size_y == 0);
+			
 		}
 		
 
@@ -54,7 +60,9 @@ class remote {
 	private:
 	
 	public:
-
+		const pgas_addr<T>& get_data_addr() const {
+			return _data;
+		}
 		T* get_data_unitialized(const int x, const int y=1) {
 			assert (x%_batch_size_x == 0);
 			assert (y%_batch_size_y == 0);
@@ -110,7 +118,23 @@ class remote {
 			
 			_datas[offset]->set_data(ptr);
 		}
-		
+
+		void fill(const int x, const int y, const pgas_addr<T> ptr, const int nb_elements) {
+			assert (x%_batch_size_x == 0);
+			assert (y%_batch_size_y == 0);
+			assert(_batch_size_x * _batch_size_y == ptr.get_batch_size());
+			assert((_batch_size_x * _batch_size_y)%nb_of_elements == 0);
+			
+			// TODO do not use!!
+			
+			const int batches = nb_elements / _batch_size_x / _batch_size_y;
+			const int offset  = get_offset(x,y);
+			
+			adabs::memcpy(_data+offset, ptr, batches);
+			
+			// TODO fill cache?
+		}
+				
 		int get_size_x() const {
 			return _x;
 		}
@@ -127,6 +151,40 @@ class remote {
 			return _batch_size_y;
 		}
 		
+		remote<T>& operator=(const local<T> &rhs) {
+			using namespace adabs::tools;
+			
+			for (int i=0; i<_y; i+=_batch_size_y) {
+				for (int j=0; j<_x; j+=_batch_size_x) {
+					rhs.get_data(i, j);
+				}
+			}
+			
+			// TODO add options to disable checks
+			{
+				pgas_addr<T> temp = rhs.get_data() + 1;
+				const int stride = (char*)temp.get_flag() - (char*)rhs.get_data().get_flag();
+			
+				// check if remote data is still empty
+				volatile int done = 0;
+				GASNET_CALL(gasnet_AMRequestShort6(_data.get_node(),
+											       adabs::impl::PGAS_ADDR_GET_UNINIT,
+											       get_low(_data.get_orig_flag()),
+											       get_high(_data.get_orig_flag()),
+											       stride,
+											       local_size()/_batch_size_x/_batch_size_y,
+											       get_low(&done),
+											       get_high(&done)
+											      )
+					      )
+
+				while (done != 1) {}
+			}
+			
+			adabs::memcpy(_data, rhs.get_data(), local_size()/_batch_size_x/_batch_size_y);
+			
+			return *this;
+		}
 
 	private:
 		void init() const {

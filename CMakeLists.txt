@@ -1,19 +1,24 @@
 PROJECT(adabs)
 
+set(CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/CMake/cuda" ${CMAKE_MODULE_PATH})
+
+find_package(CUDA QUIET REQUIRED)
+
 # GNU Toolchain compile options
 #ADD_DEFINITIONS(-g -O2 -fopenmp)
 
 #####################
 # setup intel environment
-SET(CMAKE_AR /opt/intel/bin/xiar)
+#SET(CMAKE_AR /opt/intel/bin/xiar)
 
 # compiler: vanila
-#SET(CMAKE_CXX_COMPILER /opt/intel/bin/icpc)
-#SET(CMAKE_C_COMPILER /opt/intel/bin/icc)
+SET(CMAKE_CXX_COMPILER /opt/intel/bin/icpc)
+SET(CMAKE_C_COMPILER /opt/intel/bin/icc)
 
 # compiler: mpi
-SET(CMAKE_CXX_COMPILER /opt/openmpi/bin/mpiCC)
-SET(CMAKE_C_COMPILER /opt/openmpi/bin/mpicc)
+#SET(CMAKE_CXX_COMPILER /opt/openmpi/bin/mpiCC)
+#SET(CMAKE_C_COMPILER /opt/openmpi/bin/mpicc)
+#ADD_DEFINITIONS(-DUSE_MPI_COLLETIVES)
 
 # Compiler options
 ADD_DEFINITIONS(-Wall -O0 -g3 -Wno-unused-function -openmp)
@@ -34,12 +39,12 @@ LINK_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/lib ${CMAKE_CURRENT_
 #SET(GASLIBs -lgasnet-smp-seq -lgasnet_tools-seq -lamudp ${LIBs})
 
 # UDP conduit
-#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
-#SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp ${LIBs})
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/udp-conduit)
+SET(GASLIBs -lgasnet-udp-par -lgasnet_tools-par -lamudp ${LIBs})
 
 # MPI conduit
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
-SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi ${LIBs})
+#INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/vendor/install/include/mpi-conduit)
+#SET(GASLIBs -lgasnet-mpi-par -lgasnet_tools-par -lammpi ${LIBs})
 
 
 # if you don want the full compiler output, uncomment the following line

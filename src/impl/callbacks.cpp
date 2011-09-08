@@ -27,6 +27,12 @@ const int DISTRIBUTED_MATRIX_BASE_SCATTER = 142;*/
 //const int MEMORY_MANAGEMENT_MALLOC_REPLY = 144;
 //const int MEMORY_MANAGEMENT_FREE = 145;
 
+const int SET_RETURN_MARKER = 128;
+
+const int MEMCPY = 129;
+
+const int PGAS_ADDR_CHECK_GET_ALL = 144;
+const int PGAS_ADDR_GET_UNINIT = 145;
 const int PGAS_ADDR_GET = 146;
 const int PGAS_ADDR_SET = 147;
 
@@ -38,7 +44,7 @@ const int REMOTE_COLLECTIVE_ALLOC_REPLY = 151;
 const int COLLECTIVE_PGAS_ADDR_SET = 152;
 
 
-const int NUMBER_OF_CALLBACKS = 7;
+const int NUMBER_OF_CALLBACKS = 11;
 
 }
 

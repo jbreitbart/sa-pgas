@@ -3,6 +3,7 @@
 #include "adabs/adabs.h"
 #include "adabs/remote.h"
 #include "adabs/pgas_addr.h"
+#include "adabs/memcpy.h"
 
 namespace adabs {
 
@@ -88,6 +89,20 @@ class local {
 			(_data + offset).set_data(ptr);
 		}
 		
+		void fill(const int x, const int y, pgas_addr<T> ptr, const int nb_elements) {
+			assert (x%_batch_size_x == 0);
+			assert (y%_batch_size_y == 0);
+			assert(_batch_size_x * _batch_size_y == ptr.get_batch_size());
+			assert((_batch_size_x * _batch_size_y)%nb_of_elements == 0);
+			
+			// TODO check for data alread there
+			
+			const int batches = nb_elements / _batch_size_x / _batch_size_y;
+			const int offset  = get_offset(x,y);
+			
+			adabs::memcpy(_data+offset, ptr, batches);
+		}
+		
 		int get_size_x() const {
 			return _x;
 		}
@@ -104,21 +119,66 @@ class local {
 			return _batch_size_y;
 		}
 		
-		/*local<T>& operator=(const local<T> &rhs) {
+		local<T>& operator=(const local<T> &rhs) {
+			assert (_x == rhs._x);
+			assert (_y == rhs._y);
+			assert (_batch_size_x == rhs._batch_size_x);
+			assert (_batch_size_y == rhs._batch_size_y);
+			
 			for (int i=0; i<_y; i+=_batch_size_y) {
 				for (int j=0; j<_x; j+=_batch_size_x) {
-					T* ptr = get_data_unitialized(i, j);
-					const T* ptr_rhs = rhs.get_data(i, j);
-					for (int ii=0; ii<_batch_size_y; ++ii) {
-						for (int jj=0; jj<_batch_size_x; ++jj) {
-							ptr[ii*64+jj] = ptr_rhs[ii*64+jj];
-						}
-					}
+					rhs.get_data(i, j);
+					get_data_unitialized(i, j);
 				}
 			}
 			
+			adabs::memcpy(_data, rhs._data, local_size()/_batch_size_x/_batch_size_y);
+			
 			return *this;
-		}*/
+		}
+
+		local<T>& operator=(const remote<T> &rhs) {
+			using namespace adabs::tools;
+			assert (_x == rhs.get_size_x());
+			assert (_y == rhs.get_size_y());
+			assert (_batch_size_x == rhs.get_batch_size_x());
+			assert (_batch_size_y == rhs.get_batch_size_y());
+
+			for (int i=0; i<_y; i+=_batch_size_y) {
+				for (int j=0; j<_x; j+=_batch_size_x) {
+					get_data_unitialized(i, j);
+				}
+			}
+			
+			{
+				pgas_addr<T> temp = rhs.get_data_addr() + 1;
+				const int stride = (char*)temp.get_orig_flag() - (char*)rhs.get_data_addr().get_orig_flag();
+			
+				// check if remote data is available
+				volatile int done = 0;
+				 
+				GASNET_CALL(gasnet_AMRequestShort6(rhs.get_data_addr().get_node(),
+											       adabs::impl::PGAS_ADDR_CHECK_GET_ALL,
+											       get_low(rhs.get_data_addr().get_orig_flag()),
+											       get_high(rhs.get_data_addr().get_orig_flag()),
+											       stride,
+											       local_size()/_batch_size_x/_batch_size_y,
+											       get_low(&done),
+											       get_high(&done)
+											      )
+					      )
+
+				while (done != 1) {}
+			}
+			
+			adabs::memcpy(_data, rhs.get_data_addr(), local_size()/_batch_size_x/_batch_size_y);
+			
+			return *this;
+		}
+		
+		pgas_addr<T>& get_data() const {
+			return const_cast<pgas_addr<T>&>(_data);
+		}
 		
 	private:
 		int local_size() const {

@@ -32,6 +32,8 @@ void check_matrix(const T& m) {
 			const int * ptr = m.get_tile(i, j);
 			for (int ii=0; ii<64; ++ii) {
 				for (int jj=0; jj<64; ++jj) {
+					if (!(ptr[ii*64+jj] == jj+23))
+						std::cout << ptr[ii*64+jj] << " should be " << jj+23 << std::endl;
 					assert (ptr[ii*64+jj] == jj+23);
 				}
 			}
@@ -83,6 +85,58 @@ int main(int argc, char *argv[]) {
 	
 	check_matrix(ma_v.get(next));
 	
+	// test local = local assignment
+	{
+		adabs::matrix < adabs::local<int> > local_ma(640, 640, 64);
+		check_and_fill_matrix (local_ma, 0, 1);
+		
+		adabs::matrix < adabs::local<int> > local_2_ma(640, 640, 64);
+		
+		local_2_ma = local_ma;
+		
+		check_matrix(local_2_ma);
+	}
+	
+	// test remote = local assignment
+	{
+		adabs::barrier_wait();
+		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
+		if (me == 0) {
+			local_matrix local_test(640, 640, 64);
+			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
+			ma_v_ptr[0] = local_test.make_remote();
+			ma_v.set(me, ma_v_ptr);
+			check_matrix(local_test);
+		}
+		if (me == 1) {
+			local_matrix local_test(640, 640, 64);
+			check_and_fill_matrix (local_test, 0, 1);
+			
+			remote_matrix remote_test (ma_v.get(0));
+			remote_test = local_test;
+		}
+	}
+	
+	// test local = remote assignment
+	{
+		adabs::barrier_wait();
+		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
+		if (me == 0) {
+			local_matrix local_test(640, 640, 64);
+			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
+			ma_v_ptr[0] = local_test.make_remote();
+			ma_v.set(me, ma_v_ptr);
+			
+			check_and_fill_matrix (local_test, 0, 1);
+		}
+		if (me == 1) {
+			local_matrix local_test(640, 640, 64);
+			
+			remote_matrix remote_test (ma_v.get(0));
+			local_test = remote_test;
+			check_matrix(local_test);
+		}
+	}
 	
 	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
 	
@@ -152,7 +206,7 @@ int main(int argc, char *argv[]) {
 	adabs::distributed::row_distribution<int, 64> distri(128*2, 128*2, 64);
 	
 	const int inc = all*64;
-	//#pragma omp parallel for
+	#pragma omp parallel for
 	for (int i=me*64; i<128*2; i+=inc) {
 		for (int j=0; j<128*2; j+=64) {
 			int* ptr = distri.get_data_unitialized(i, j);
@@ -176,6 +230,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
+	
 	
 	std::cout << me << ": " << "Everything fine!" << std::endl;
 

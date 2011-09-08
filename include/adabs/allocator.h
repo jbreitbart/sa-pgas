@@ -145,6 +145,7 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	for (int i=0; i<num_batch; ++i) {
 		int *flag_ptr = reinterpret_cast<int*>(init_ptr);
 		*flag_ptr = 0;
+		//std::cout << "write 0 to " << flag_ptr << std::endl;
 		init_ptr += batch_mem_size;
 	}
 	
