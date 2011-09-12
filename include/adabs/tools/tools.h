@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <iostream>
 #include <sys/time.h>
+#include "adabs/gasnet_config.h"
+
 
 inline double timediff(timeval tv2, timeval tv1) {
 	return (double) (tv2.tv_sec - tv1.tv_sec) + ((double) (tv2.tv_usec - tv1.tv_usec) / 1000000.0);

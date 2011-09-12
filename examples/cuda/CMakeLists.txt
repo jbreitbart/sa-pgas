@@ -1,5 +1,6 @@
 # Include the current directory
 INCLUDE_DIRECTORIES( ${CMAKE_CURRENT_SOURCE_DIR} )
+INCLUDE_DIRECTORIES( /usr/local/cuda/include )
 
 list(APPEND CUDA_NVCC_FLAGS -arch sm_20)
 CUDA_ADD_LIBRARY(cuda_lib kernel.cu)

@@ -247,7 +247,7 @@ class pgas_addr {
 			if (is_local()) {
 				int a = tools::alignment<T>::val();
 				if (a<sizeof(int)) a = sizeof(int);
-				_cache = (int*)((char*)(_orig_ptr)+a);
+				_cache = (T*)((char*)(_orig_ptr)+a);
 			} else {
 				#pragma omp critical
 				{

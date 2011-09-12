@@ -101,7 +101,6 @@ class remote {
 
 		void set_data(const int x, T const * restrict const ptr) {
 			assert (x%_batch_size_x == 0);
-			assert (y == 1);
 			assert (_datas != 0);
 			
 			const int offset = get_offset(x,1);
@@ -123,7 +122,7 @@ class remote {
 			assert (x%_batch_size_x == 0);
 			assert (y%_batch_size_y == 0);
 			assert(_batch_size_x * _batch_size_y == ptr.get_batch_size());
-			assert((_batch_size_x * _batch_size_y)%nb_of_elements == 0);
+			assert((_batch_size_x * _batch_size_y)%nb_elements == 0);
 			
 			// TODO do not use!!
 			

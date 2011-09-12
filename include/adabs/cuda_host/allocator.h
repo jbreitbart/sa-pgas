@@ -1,8 +1,15 @@
 #pragma once
 
-#include "adabs/pgas_addr.h"
+#include "adabs/cuda_host/pgas_addr.h"
+#include <cuda.h>
+#include <cuda_runtime.h>
 
 namespace adabs {
+
+namespace cuda_host {
+
+template <typename T>
+class pgas_addr;
 
 namespace impl {
 inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT);
@@ -25,8 +32,6 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
  *       - max_size()
  */
 
-template <typename T>
-class pgas_addr;
 
 template <typename T>
 struct allocator;
@@ -92,7 +97,7 @@ template <typename T>
 void allocator<T>::deallocate(pointer &p) {
 	assert(p.is_local());
 	
-	free(p._orig_ptr);
+	cudaFreeHost(p._orig_ptr);
 }
 
 template <typename T>
@@ -139,7 +144,15 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	
 	const size_t mem_size = num_batch * batch_mem_size;
 	
-	void *ptr = malloc (mem_size);
+	void *ptr;
+	cudaError_t error = cudaHostAlloc(&ptr, mem_size, cudaHostAllocDefault);//cudaMallocHost (&ptr, mem_size);
+	
+	if(error != cudaSuccess) {
+		// print the CUDA error message and exit
+		printf("CUDA error: %s\n", cudaGetErrorString(error));
+		exit(-1);
+	}
+	//void *ptr = malloc (mem_size);
 	
 	char *init_ptr = reinterpret_cast<char*>(ptr);
 	
@@ -155,6 +168,7 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 
 }
 
+}
 
 }
 

@@ -1,5 +1,12 @@
 #pragma once
 
+#define CALLER 
+
+#ifdef __CUDACC__
+#define CALLER __device__ __host__
+#endif
+
+
 namespace adabs {
 
 namespace tools {
@@ -12,7 +19,7 @@ class alignment {
 			T t;
 		};
 	public:
-		static int val() { 
+		CALLER static int val() { 
 			return sizeof(align) - sizeof(T);
 		}
 };

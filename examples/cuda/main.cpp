@@ -1,26 +1,17 @@
 #include <iostream>
 #include <vector>
-#include <cmath>
 #include <omp.h>
-#include <pthread.h>
 #include <sys/time.h>
 
 #include "adabs/adabs.h"
-#include "adabs/allocator.h"
-#include "adabs/pgas_addr.h"
+#include "adabs/cuda_host/allocator.h"
+#include "adabs/cuda_host/pgas_addr.h"
 
-#include "adabs/collective/allocator.h"
-#include "adabs/collective/pgas_addr.h"
-
-#include "adabs/distributed/row_distribution.h"
-
-#include "adabs/local.h"
-#include "adabs/remote.h"
-#include "adabs/collective/everywhere.h"
-
+#include "adabs/cuda_host/local.h"
 #include "adabs/matrix.h"
 
 #include "header.h"
+
 
 using namespace std;
 
@@ -69,15 +60,15 @@ int main(int argc, char *argv[]) {
 	
 	adabs::init(&argc, &argv);
 
-	caller();
-
-	
 	omp_set_num_threads(THREADS);
 	
-	typedef adabs::matrix<adabs::local<int> > local_matrix;
-	typedef adabs::matrix<adabs::remote<int> > remote_matrix;
+	adabs::matrix< adabs::cuda_host::local < float > > A(512, 512, 16);
+	adabs::matrix< adabs::cuda_host::local < float > > B(512, 512, 16);
+	adabs::matrix< adabs::cuda_host::local < float > > C(512, 512, 16);
 	
-	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
+	caller(A, B, C);
+	
+	/*adabs::cuda_host::pgas_addr<int> itile = adabs::cuda_host::allocator<int>::allocate(100*128, 128);
 	
 	#pragma omp parallel
 	{
@@ -91,7 +82,7 @@ int main(int argc, char *argv[]) {
 			itile.set_data(ptr);
 		}
 		
-		adabs::pgas_addr<int> tlocal = itile + omp_get_thread_num();
+		adabs::cuda_host::pgas_addr<int> tlocal = itile + omp_get_thread_num();
 		
 		for (int i=omp_get_thread_num()+1; i<100; i+=omp_get_num_threads()) {
 			const int *old_ptr = tlocal.get_data();
@@ -119,57 +110,9 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
-	adabs::allocator<int>::deallocate(itile);
+	adabs::cuda_host::allocator<int>::deallocate(itile);*/
 	
 	adabs::barrier_wait();
-	
-	adabs::collective::pgas_addr<int> ictile = adabs::collective::allocator<int>::allocate(128, 128);
-	
-	if (me==0) {
-		int * ptr = ictile.get_data_unitialized();
-	
-		for (int i=0; i<128; ++i) {
-			ptr[i] = i;
-		}
-	
-		ictile.set_data(ptr);
-	} else {
-		const int * ptr = ictile.get_data();
-		for (int i=0; i<128; ++i) {
-			assert (i == ptr[i]); 
-		}
-	}
-
-	adabs::collective::allocator<int>::deallocate(ictile);
-	
-	adabs::distributed::row_distribution<int, 64> distri(128*2, 128*2, 64);
-	
-	const int inc = all*64;
-	#pragma omp parallel for
-	for (int i=me*64; i<128*2; i+=inc) {
-		for (int j=0; j<128*2; j+=64) {
-			int* ptr = distri.get_data_unitialized(i, j);
-			
-			for (int ii=0; ii<64; ++ii) {
-				ptr[ii] = ii+23;
-			}
-			
-			distri.set_data(i, j, ptr);
-		}
-	}
-
-	const int start = (me+1)%all;
-	#pragma omp parallel for
-	for (int i=start*64; i<128; i+=inc) {
-		for (int j=0; j<128; j+=all*64) {
-			const int* ptr = distri.get_data(i, j);
-			
-			for (int ii=0; ii<64; ++ii) {
-				assert(ptr[ii] == ii+23);
-			}
-		}
-	}
-	
 	
 	std::cout << me << ": " << "Everything fine!" << std::endl;
 
