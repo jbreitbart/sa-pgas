@@ -1,9 +1,9 @@
 #pragma once
 
-#define CALLER 
-
 #ifdef __CUDACC__
 #define CALLER __device__ __host__
+#else
+#define CALLER
 #endif
 
 

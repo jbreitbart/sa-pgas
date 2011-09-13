@@ -31,7 +31,7 @@ class vector {
 		 * Copy constructor to create a copy of @param cpy
 		 */
 		vector (const vector<T>& cpy) :
-		   _distri(cpy.get_size_x(), cpy.get_batch_size(x))
+		   _distri(cpy.size(), cpy.get_batch_size())
 		{
 			_distri = cpy._distri;
 		}
@@ -55,6 +55,10 @@ class vector {
 			return *_distri.get_data(x);
 		}
 		
+		const typename T::value_type* get_tile(const int x) const {
+			return _distri.get_data(x);
+		}
+		
 		typename T::value_type* get_unitialized(const int x) {
 			return _distri.get_data_unitialized(x);
 		}
@@ -65,10 +69,18 @@ class vector {
 		int size() const {
 			return _distri.size_x();
 		}
+		
+		int get_batch_size() const {
+			return _distri.get_batch_size();
+		}
 
-		template <typename T>
-		vector<T>& operator=(const vector<T>& rhs) {
+		template <typename T2>
+		vector<T>& operator=(const vector<T2>& rhs) {
 			return _distri = rhs._distri;
+		}
+		
+		const T& get_distri() const {
+			return _distri;
 		}
 };
 

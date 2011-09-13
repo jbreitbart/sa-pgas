@@ -31,7 +31,7 @@ class local {
 		}
 		
 		local(const int x, const int batch_size_x) : _x(x), _y(1), _batch_size_x(batch_size_x), _batch_size_y(1),
-		    _data (adabs::allocator<T>::allocate(_x*_y, _batch_size_x*_batch_size_y))
+		    _data (adabs::cuda_host::allocator<T>::allocate(_x*_y, _batch_size_x*_batch_size_y))
 		 {
 			assert (_x%_batch_size_x == 0);
 			assert (_y%_batch_size_y == 0);

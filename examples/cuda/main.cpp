@@ -17,42 +17,6 @@ using namespace std;
 
 const int THREADS = 4;
 
-template <typename T>
-void check_matrix(const T& m) {
-
-	for (int i=0; i<640; i+=m.get_tile_size()) {
-		for (int j=0; j<640; j+=m.get_tile_size()) {
-			const int * ptr = m.get_tile(i, j);
-			for (int ii=0; ii<64; ++ii) {
-				for (int jj=0; jj<64; ++jj) {
-					if (!(ptr[ii*64+jj] == jj+23))
-						std::cout << ptr[ii*64+jj] << " should be " << jj+23 << std::endl;
-					assert (ptr[ii*64+jj] == jj+23);
-				}
-			}
-			
-		}
-	}
-}
-
-template <typename T>
-void check_and_fill_matrix(T& m, const int start, const int stride) {
-	for (int i=start*m.get_tile_size(); i<640; i+=m.get_tile_size()*stride) {
-		for (int j=0; j<640; j+=m.get_tile_size()) {
-			int * ptr = m.get_tile_unitialized(i, j);
-			for (int ii=0; ii<64; ++ii) {
-				for (int jj=0; jj<64; ++jj) {
-					ptr[ii*64+jj] = jj+23;
-				}
-			}
-			
-			m.set_tile(i, j, ptr);
-		}
-	}
-	
-	check_matrix(m);
-}
-
 int main(int argc, char *argv[]) {
 	using adabs::me;
 	using adabs::all;
@@ -62,13 +26,13 @@ int main(int argc, char *argv[]) {
 
 	omp_set_num_threads(THREADS);
 	
-	adabs::matrix< adabs::cuda_host::local < float > > A(512, 512, 16);
+	/*adabs::matrix< adabs::cuda_host::local < float > > A(512, 512, 16);
 	adabs::matrix< adabs::cuda_host::local < float > > B(512, 512, 16);
-	adabs::matrix< adabs::cuda_host::local < float > > C(512, 512, 16);
+	adabs::matrix< adabs::cuda_host::local < float > > C(512, 512, 16);*/
 	
-	caller(A, B, C);
+	caller();
 	
-	/*adabs::cuda_host::pgas_addr<int> itile = adabs::cuda_host::allocator<int>::allocate(100*128, 128);
+	adabs::cuda_host::pgas_addr<int> itile = adabs::cuda_host::allocator<int>::allocate(100*128, 128);
 	
 	#pragma omp parallel
 	{
@@ -110,13 +74,11 @@ int main(int argc, char *argv[]) {
 		}
 	}
 	
-	adabs::cuda_host::allocator<int>::deallocate(itile);*/
+	adabs::cuda_host::allocator<int>::deallocate(itile);
 	
 	adabs::barrier_wait();
 	
 	std::cout << me << ": " << "Everything fine!" << std::endl;
 
 	adabs::exit(0);
-	
-	return 0;
 } 
