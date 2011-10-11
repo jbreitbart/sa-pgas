@@ -116,7 +116,7 @@ int main(int argc, char *argv[]) {
 			remote_test = local_test;
 		}
 	}
-	
+#if 0	
 	// test local = remote assignment
 	{
 		adabs::barrier_wait();
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) {
 			check_matrix(local_test);
 		}
 	}
-	
+#endif	
 	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
 	
 	#pragma omp parallel

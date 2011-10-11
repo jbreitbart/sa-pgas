@@ -103,7 +103,7 @@ class pgas_addr {
 		T* get_data() const {
 			using namespace adabs::tools;
 			
-			// must be called befor is_available is called
+			// must be called before is_available is called
 			set_cache();
 			
 			if (!is_local()) {

@@ -96,8 +96,19 @@ struct allocator {
 template <typename T>
 void allocator<T>::deallocate(pointer &p) {
 	assert(p.is_local());
+
+	cudaError_t error = cudaSuccess;
+
+	//error= cudaFreeHost(p._orig_ptr);
 	
-	cudaFreeHost(p._orig_ptr);
+	if(error != cudaSuccess) {
+		// print the CUDA error message and exit
+		printf("CUDA error @ free: %s\n", cudaGetErrorString(error));
+		std::cout << "pointer tried to free " << p._orig_ptr << std::endl;
+		exit(-1);
+	} else {
+		//std::cout << "pointer freed " << p._orig_ptr << std::endl;
+	}
 }
 
 template <typename T>
@@ -145,11 +156,13 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	const size_t mem_size = num_batch * batch_mem_size;
 	
 	void *ptr;
-	cudaError_t error = cudaHostAlloc(&ptr, mem_size, cudaHostAllocDefault);//cudaMallocHost (&ptr, mem_size);
+	cudaError_t error = cudaHostAlloc(&ptr, mem_size, cudaHostAllocDefault);//cudaMallocHost (&ptr, mem_size, cudaHostAllocDefault);//
+	
 	
 	if(error != cudaSuccess) {
 		// print the CUDA error message and exit
-		printf("CUDA error: %s\n", cudaGetErrorString(error));
+		printf("CUDA error @ allocator: %s\n", cudaGetErrorString(error));
+		std::cout << "allocated " << mem_size << " bytes @ " << ptr << std::endl;
 		exit(-1);
 	}
 	//void *ptr = malloc (mem_size);

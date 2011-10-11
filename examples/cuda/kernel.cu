@@ -76,7 +76,7 @@ __global__ void block_add (int* input, int* output, int* block_sum_scanned) {
 	temp[2*threadIdx.x+1] = reader[2*threadIdx.x+1];
 	
 	int add = block_sum_reader[0];
-	
+	 
 	temp[2*threadIdx.x]   += add;
 	temp[2*threadIdx.x+1] += add;
 	
@@ -86,50 +86,67 @@ __global__ void block_add (int* input, int* output, int* block_sum_scanned) {
 	set_tile(output, blockIdx.x+1, 0, blockDim.x*2);
 }
 
+/*inline double timediff(timeval tv2, timeval tv1) {
+	return (double) (tv2.tv_sec - tv1.tv_sec) + ((double) (tv2.tv_usec - tv1.tv_usec) / 1000000.0);
+}*/
 
 void caller() {
-    
-    const int block_size = 256;
-    const int nb_of_blocks = 200;
+	timeval tv1, tv2, tv3, tv4;
+	
+	cudaError_t error;
+    int nb_of_blocks = 1400;
+	std::cout << "#blocks: " << nb_of_blocks << std::endl;
+	
+	const int block_size = 256;
 	adabs::vector< adabs::cuda_host::local <int> > input(nb_of_blocks*block_size, block_size);
 	adabs::vector< adabs::cuda_host::local <int> > output_block_scan(nb_of_blocks*block_size, block_size);
 	adabs::vector< adabs::cuda_host::local <int> > output_final(nb_of_blocks*block_size, block_size);
-	
+
 	adabs::vector< adabs::cuda_host::local <int> > block_sums(nb_of_blocks, 1);
 	adabs::vector< adabs::cuda_host::local <int> > block_sums_scanned(nb_of_blocks, 1);
-	
+
 	cudaSetDevice(0);
 	// start block scan kernel @ GPU 0
 	block_scan<<<nb_of_blocks, block_size/2>>>((int*)input.get_distri().get_data_addr().get_raw_pointer(),
-	                                           (int*)output_block_scan.get_distri().get_data_addr().get_raw_pointer(),
-	                                           (int*)block_sums.get_distri().get_data_addr().get_raw_pointer()
-	                                          );
-	
+		                                       (int*)output_block_scan.get_distri().get_data_addr().get_raw_pointer(),
+		                                       (int*)block_sums.get_distri().get_data_addr().get_raw_pointer()
+		                                      );
+
 	cudaSetDevice(1);
 	// start add kernel @ GPU 1
 	block_add<<<nb_of_blocks-1, block_size/2>>>((int*)output_block_scan.get_distri().get_data_addr().get_raw_pointer(),
-	                                            (int*)output_final.get_distri().get_data_addr().get_raw_pointer(),
-	                                            (int*)block_sums_scanned.get_distri().get_data_addr().get_raw_pointer()
-	                                           );
+		                                        (int*)output_final.get_distri().get_data_addr().get_raw_pointer(),
+		                                        (int*)block_sums_scanned.get_distri().get_data_addr().get_raw_pointer()
+		                                       );
+	omp_set_num_threads(4);
 	
-	#pragma omp parallel numthread(4)
+	gettimeofday(&tv1, NULL);
+	#pragma omp parallel
 	{
 		int me = omp_get_thread_num();
 		int all = omp_get_num_threads();
-		
+
 		// fill input array with random numbers
 		#pragma omp single nowait
 		{
+			gettimeofday(&tv3, NULL);
 			for (int i=0; i<nb_of_blocks; ++i) {
 				int *writer = input.get_unitialized(i*block_size);
 				for (int j=0; j<block_size; ++j) {
 					writer[j] = std::rand() % 256;//block_size - j;
 				}
+				
+				volatile int x = 0;
+				for (int X=0; X<50000; ++X)
+					x+=X;
+				
 				input.set(i*block_size, writer);
 			}
+			gettimeofday(&tv4, NULL);
 		}
-	
+
 		// scan block sums
+
 		#pragma omp single nowait
 		{
 			int start = 0;
@@ -137,13 +154,13 @@ void caller() {
 				int *writer = block_sums_scanned.get_unitialized(i);
 				writer[0] = start;
 				block_sums_scanned.set(i, writer);
-				
+			
 				const int reader = block_sums.get(i);
 				start += reader;
 			}
 		}
-		
-		// copy block 0
+	
+		/*// copy block 0
 		#pragma omp single nowait
 		{
 			const int *reader = output_block_scan.get_tile(0);
@@ -153,19 +170,19 @@ void caller() {
 			}
 			output_final.set(0, writer);
 		}
-	
+
 		// read final results + sanity check (may crash due to overflow)
 		#pragma omp single nowait
 		{
 			int prev = -1;
 			for (int i=0; i<nb_of_blocks; ++i) {
 				const int *reader = output_final.get_tile(i*block_size);
-				const int *reader2 = input.get_tile(i*block_size);
-				const int *reader3 = output_block_scan.get_tile(i*block_size);
-				const int reader4 = block_sums_scanned.get(i);
-				
+			
 				for (int j=0; j<block_size; ++j) {
 					if (prev > reader[j]) {
+						const int *reader2 = input.get_tile(i*block_size);
+						const int *reader3 = output_block_scan.get_tile(i*block_size);
+						const int reader4 = block_sums_scanned.get(i);
 						for (int j=0; j<block_size; ++j) {
 							std::cout << i*block_size+j << " - " << reader2[j] << " - " << reader3[j] << " - " << reader4 << " - " << reader[j] << std::endl;
 						}
@@ -174,21 +191,26 @@ void caller() {
 					prev = reader[j];
 				}
 			}
-		}
+		}*/
+
 	}
+
+	gettimeofday(&tv2, NULL);
+	std::cout << "runtime: " << timediff(tv2, tv1) << std::endl;
+	std::cout << "fill time: " << timediff(tv4, tv3) << std::endl;
 	
+
 	// make sure our next call to cudaGetLastError will return errors
 	// from the kernels started before
 	cudaDeviceSynchronize();
-	
+
 	// check for error
-	cudaError_t error = cudaGetLastError();
+	error = cudaGetLastError();
 	if(error != cudaSuccess) {
 		// print the CUDA error message and exit
 		printf("CUDA error: %s\n", cudaGetErrorString(error));
 		exit(-1);
 	}
-	
 }
 
 #if 0
