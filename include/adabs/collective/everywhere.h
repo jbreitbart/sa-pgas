@@ -98,22 +98,6 @@ class everywhere {
 			return _batch_size_y;
 		}
 		
-		/*everwhere<T>& operator=(const everwhere<T> &rhs) {
-			if (!leader) return;
-			for (int i=0; i<_y; i+=_batch_size_y) {
-				for (int j=0; j<_x; j+=_batch_size_x) {
-					T* ptr = get_data_unitialized(i, j);
-					const T* ptr_rhs = rhs.get_data(i, j);
-					for (int ii=0; ii<_batch_size_y; ++ii) {
-						for (int jj=0; jj<_batch_size_x; ++jj) {
-							ptr[ii*64+jj] = ptr_rhs[ii*64+jj];
-						}
-					}
-				}
-			}
-			
-			return *this;
-		}*/
 	private:
 		int local_size() const {
 			return _x*_y;

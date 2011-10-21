@@ -5,7 +5,7 @@
 namespace adabs {
 
 namespace impl {
-inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT);
+inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT, const int alignmentT);
 }
 
 /**
@@ -69,7 +69,9 @@ struct allocator {
 		return pointer(ptr, 1);
 	}
 	static pointer allocate(size_type num_objects, size_type batch_size, const void* localityHint = 0) {
-		void* ptr = impl::real_allocate(num_objects, batch_size, sizeof(T));
+		int a = tools::alignment<T>::val();
+		if (a<sizeof(int)) a = sizeof(int);
+		void* ptr = impl::real_allocate(num_objects, batch_size, sizeof(T), a);
 		return pointer(ptr, batch_size);
 	}
 
@@ -130,6 +132,31 @@ bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() {
 
 namespace impl {
 
+inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT, const int alignmentT) {
+	const size_t batch_mem_size = sizeT * num_objects + alignmentT;
+	
+	const size_t num_batch =   (num_objects % batch_size == 0)
+	                         ? (num_objects / batch_size)
+	                         : (num_objects / batch_size) + 1;
+	
+	const size_t mem_size = num_batch * batch_mem_size;
+	
+	void *ptr = malloc (mem_size);
+	
+	char *init_ptr = reinterpret_cast<char*>(ptr);
+	
+	for (int i=0; i<num_batch; ++i) {
+		init_ptr += batch_mem_size - alignmentT;
+		int *flag_ptr = reinterpret_cast<int*>(init_ptr);
+		//std::cout << "write 0 to " << flag_ptr << std::endl;
+		*flag_ptr = 0;
+		init_ptr += alignmentT;
+	}
+	
+	return ptr;
+}
+
+#if 0
 inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT) {
 	const size_t batch_mem_size = sizeT * num_objects + sizeof(int);
 	
@@ -152,6 +179,7 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	
 	return ptr;
 }
+#endif
 
 }
 

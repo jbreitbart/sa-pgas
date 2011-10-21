@@ -58,13 +58,16 @@ class row_distribution {
 			assert (y%_batch_size == 0);
 			
 			if (is_local(x,y)) {
+				//std::cout << "local get" << std::endl;
 				return _local.get_data(get_local_x(x), get_local_y(y));
 			}
 			
 			
 			const int node = get_node(x,y);
-						
-			return _remote.get(node).get_data(get_local_x(x), get_local_y(y));
+			//std::cout << "remote get from node " << node << std::endl;
+			const adabs::remote<T> &temp = _remote.get(node);
+			//std::cout << "address " << get_local_x(x) << ", " << get_local_y(y) << std::endl;
+			return temp.get_data(get_local_x(x), get_local_y(y));
 		}
 		
 		void set_data(const int x, const int y, T* ptr) {

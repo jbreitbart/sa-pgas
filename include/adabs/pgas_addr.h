@@ -60,9 +60,9 @@ class pgas_addr {
 	
 	/******************* VARIABLES *****************/
 	private:
-		int _orig_node;
+		int _orig_node; 
 		int _batch_size;
-		void* _orig_ptr;
+		void* _orig_ptr; // just the plain start pointer
 		mutable T* _cache;
 		
 	/**************** CON/DESTRUCTORS ***************/
@@ -95,7 +95,7 @@ class pgas_addr {
 		
 		~pgas_addr() {
 			if (!is_local() && _cache!=0)
-				free(get_flag());
+				free(_cache);
 		}
 	
 	/***************** FUNCTIONS *********************/
@@ -118,17 +118,16 @@ class pgas_addr {
 											           get_low(_orig_ptr),
 											           get_high(_orig_ptr),
 											           _batch_size * sizeof(T),
-											           get_low(get_flag()),
-											           get_high(get_flag()),
+											           get_low(_cache),
+											           get_high(_cache),
 											           a
 											          )
 					          )
 				}
 			}
 			
+			//std::cout << "waiting on flag " << (void*)get_flag() << std::endl;
 			while (!is_available()) {
-				// wait until data is ready
-				__sync_synchronize();
 			}
 			
 			return _cache;
@@ -152,14 +151,18 @@ class pgas_addr {
 			
 			const bool a = available();
 			assert (a);
+			
+			//if (is_local()) std::cout << "local set!" << std::endl;
+			
 			if (!is_local()) {
+				//std::cout << "remote set" << std::endl;
 				GASNET_CALL(gasnet_AMRequestLong2(_orig_node,
 										           adabs::impl::PGAS_ADDR_SET,
 										           _cache,
 										           sizeof(T)*_batch_size,
-										           (void*)((int*)_orig_ptr + 1),
-										           get_low(_orig_ptr),
-										           get_high(_orig_ptr)
+										           (void*)(_orig_ptr),
+										           get_low(get_orig_flag()),
+										           get_high(get_orig_flag())
 										          )
 				          )
 			}
@@ -177,6 +180,9 @@ class pgas_addr {
 			             (char*)_orig_ptr
 			             + (a + sizeof(T)*_batch_size)*rhs
 			            );
+			            
+			// TODO clear cache
+			
 			return *this;
 		}
 		
@@ -198,6 +204,9 @@ class pgas_addr {
 			             (char*)_orig_ptr
 			             - (a + sizeof(T)*_batch_size)*rhs
 			            );
+			            
+			// TODO clear cache
+			
 			return *this;
 		}
 		
@@ -228,9 +237,10 @@ class pgas_addr {
 			return _batch_size;
 		}
 		
-		int* get_orig_flag() const {
+		void* get_orig_flag() const {
 			//std::cout << "orig_ptr = " << _orig_ptr << std::endl;
-			return (int*)(_orig_ptr);
+			char* temp = (char*) _orig_ptr + sizeof(T)*_batch_size;
+			return (void*)(temp);
 		}
 		
 		int* get_flag() const {
@@ -239,20 +249,19 @@ class pgas_addr {
 			if (a<sizeof(int)) a = sizeof(int);
 			
 			//std::cout << "flag is at " << (int*)((char*)_cache - a) << std::endl;
-			return (int*)((char*)_cache - a);
+			return (int*)((char*)_cache + sizeof(T)*_batch_size);
 		}
 		
 	private:
 		void set_cache() const {
 			if (is_local()) {
-				int a = tools::alignment<T>::val();
-				if (a<sizeof(int)) a = sizeof(int);
-				_cache = (T*)((char*)(_orig_ptr)+a);
+				_cache = (T*)((char*)(_orig_ptr));
 			} else {
 				#pragma omp critical
 				{
 					if (_cache == 0)
 						_cache = allocator<T>::allocate(_batch_size, _batch_size).get_data_ptr();
+					//std::cout << "cache is at position " << (void*)_cache << std::endl;
 				}
 				
 			}
@@ -371,7 +380,7 @@ inline void* pgas_addr_check_get_all_thread(void *threadarg) {
 	pgas_addr_check_get_all_thread_arg* arg = (pgas_addr_check_get_all_thread_arg*)threadarg;
 	
 	for (int i=0; i<arg->arg3; ++i) {
-		std::cout << i << " at " << (int*)arg->flag << std::endl;
+		//std::cout << i << " at " << (int*)arg->flag << std::endl;
 		
 		// wait until flag is set
 		volatile int* reader = arg->flag;
@@ -381,7 +390,7 @@ inline void* pgas_addr_check_get_all_thread(void *threadarg) {
 	}
 	
 	int *return_marker  = get_ptr<int>(arg->arg4, arg->arg5);
-	std::cout << "set done flag at " << return_marker << std::endl;
+	//std::cout << "set done flag at " << return_marker << std::endl;
 	if (return_marker != 0) {
 		GASNET_CALL(gasnet_AMRequestShort2(arg->dest,
 										   adabs::impl::SET_RETURN_MARKER,
@@ -438,6 +447,7 @@ inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes
 	using namespace adabs::tools;
 	
 	int *flag  = get_ptr<int>(arg0, arg1);
+	//flag = (int*)((char*)flag + nbytes);
 	
 	//std::cout << gasnet_mynode() << " remote set receviced " << flag << std::endl;
 	
@@ -476,24 +486,28 @@ inline void* remote_get_thread(void *threadarg) {
 	remote_get_thread_arg* arg = (remote_get_thread_arg*)threadarg;
 	
 	// wait until flag is set
-	volatile int* reader = (volatile int*)arg->local;
+	volatile int* reader = (volatile int*) ((char*)arg->local + arg->batch_mem_size);
 	//std::cout << me << ": " << arg->local << std::endl;
 	//std::cout << me << ": " << *reader << std::endl;
+	//std::cout << "remote waiting on pointer " << (void*)reader << std::endl;
 	while (*reader != adabs::pgas_addr<void>::FULL) {}
+	//std::cout << "remote waiting on pointer " << (void*)reader << " done " << std::endl;
 	
 	__sync_synchronize();
 	
 	// sent data back
-	void* buf = (char*)arg->local + arg->flag_diff;
+	void* buf = (char*)arg->local;// + arg->flag_diff;
 
 	int* data = (int*)arg->remote; // flag
-	++data; // move to data
+	int* flag = (int*)((char*)arg->remote + arg->batch_mem_size);
+	//std::cout << "calling remote set: " << (void*)arg->remote << " + " << arg->batch_mem_size << std::endl; 
+	//++data; // move to data
 
 	GASNET_CALL(
 	            gasnet_AMRequestLong2(arg->dest, adabs::impl::PGAS_ADDR_SET,
 	                                  buf, arg->batch_mem_size, data,
-	                                  get_low(arg->remote),
-	                                  get_high(arg->remote)
+	                                  get_low(flag),
+	                                  get_high(flag)
 	                                 )
 	           )
 	           
@@ -521,6 +535,8 @@ inline void pgas_addr_remote_get (gasnet_token_t token,
 	
 	gasnet_node_t src;
 	GASNET_CALL( gasnet_AMGetMsgSource(token, &src) )
+	
+	//std::cout << "got remote get for return address " << remote << std::endl;
 	
 	remote_get_thread_arg *para = new remote_get_thread_arg(local, arg2, remote, src, arg5);
 	

@@ -62,9 +62,6 @@ class pgas_addr {
 				// wait until data is ready
 			}
 			
-			// TODO
-			__sync_synchronize();
-			
 			return _ptr;
 		}
 		

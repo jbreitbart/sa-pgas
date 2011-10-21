@@ -77,6 +77,8 @@ void init(int *argc, char **argv[]) {
 	_prev = (me+all-1)%all;
 	_leader = (me == 0);
 	
+	std::cout << me << ": running" << std::endl;
+	
 	#ifdef USE_MPI_COLLETIVES
 	if (leader)
 		std::cout << "Adabs uses MPI collective operations" << std::endl << std::endl;
