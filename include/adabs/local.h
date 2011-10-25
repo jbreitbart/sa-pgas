@@ -156,7 +156,7 @@ class local {
 			
 				// check if remote data is available
 				volatile int done = 0;
-				 
+				
 				GASNET_CALL(gasnet_AMRequestShort6(rhs.get_data_addr().get_node(),
 											       adabs::impl::PGAS_ADDR_CHECK_GET_ALL,
 											       get_low(rhs.get_data_addr().get_orig_flag()),

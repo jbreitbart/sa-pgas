@@ -13,7 +13,8 @@ inline void remote_allocate_real(gasnet_token_t token, gasnet_handlerarg_t arg0,
                                                 gasnet_handlerarg_t arg1,
                                                 gasnet_handlerarg_t arg2,
                                                 gasnet_handlerarg_t arg3,
-                                                gasnet_handlerarg_t arg4
+                                                gasnet_handlerarg_t arg4,
+                                                gasnet_handlerarg_t arg5
                          );
 inline void remote_malloc_real_reply(gasnet_token_t token, gasnet_handlerarg_t arg0,
                                                     gasnet_handlerarg_t arg1,
@@ -30,9 +31,9 @@ inline void  add_to_stack(gasnet_token_t token, void *buf, size_t nbytes,
 }
 
 namespace impl{
-inline void* remote_allocate(const int node, const int num_objects, const int batch_size, const int sizeT);
+inline void* remote_allocate(const int node, const int num_objects, const int batch_size, const int sizeT, const int a);
 inline void remote_free(const int node, void* ptr);
-inline void* real_allocate(const int num_objects, const int batch_size, const int batch_mem_size);
+inline void* real_allocate(const int num_objects, const int batch_size, const int batch_mem_size, const int a);
 
 extern std::queue<void*> memory_queue;
 }
@@ -134,10 +135,10 @@ allocator<T>::pointer allocator<T>::allocate(allocator<T>::size_type num_objects
 		for (int i=0; i<all; ++i) {
 			if (i == me) {
 				// local allocate
-				ptrs[i] = impl::real_allocate (num_objects, batch_size, batch_mem_size);
+				ptrs[i] = impl::real_allocate (num_objects, batch_size, batch_mem_size, a);
 			} else {
 				// allocate on remote node
-				ptrs[i] = adabs::collective::impl::remote_allocate(i, num_objects, batch_size, batch_mem_size);
+				ptrs[i] = adabs::collective::impl::remote_allocate(i, num_objects, batch_size, batch_mem_size, a);
 			}
 			
 			//std::cout << "allocated on " << i << ": " << ptrs[i] << std::endl;
@@ -237,19 +238,20 @@ bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() {
 
 namespace impl {
 
-inline void* remote_allocate(const int node, const int num_objects, const int batch_size, const int sizeT) {
+inline void* remote_allocate(const int node, const int num_objects, const int batch_size, const int sizeT, const int alignmentT) {
 	using namespace adabs::tools;
 	
 	volatile long returnee;
 	returnee = -1;
 	
 	 // start remote thread and allocate memory
-	GASNET_CALL(gasnet_AMRequestShort5(node, adabs::impl::REMOTE_COLLECTIVE_ALLOC,
+	GASNET_CALL(gasnet_AMRequestShort6(node, adabs::impl::REMOTE_COLLECTIVE_ALLOC,
 	                                   get_low(&returnee),
 	                                   get_high(&returnee),
 	                                   num_objects,
 	                                   batch_size,
-	                                   sizeT
+	                                   sizeT,
+	                                   alignmentT
 	                                  )
 	           )
 	 
@@ -273,13 +275,14 @@ inline void remote_free(const int node, void* ptr) {
 }
 
 
-inline void* real_allocate(const int num_objects, const int batch_size, const int batch_mem_size) {
+inline void* real_allocate(const int num_objects, const int batch_size, const int batch_mem_size, const int alignmentT) {
 	
 	const size_t num_batch =   (num_objects % batch_size == 0)
 	                         ? (num_objects / batch_size)
 	                         : (num_objects / batch_size) + 1;
 	
-	const size_t mem_size = num_batch * batch_mem_size + adabs::all*sizeof(void*);
+	const int pointer_alignment = alignmentT - ((adabs::all*sizeof(void*)) % alignmentT);
+	const size_t mem_size = num_batch * batch_mem_size + adabs::all*sizeof(void*) + pointer_alignment;
 	
 	void *ptr = malloc (mem_size);
 	
@@ -293,13 +296,14 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 		++init_ptr_1;
 	}
 	
-	char *init_ptr_2 = reinterpret_cast<char*>(init_ptr_1);
+	char *init_ptr_2 = reinterpret_cast<char*>(init_ptr_1) + pointer_alignment;
 	
 	for (int i=0; i<num_batch; ++i) {
+		init_ptr_2 += batch_mem_size - alignmentT;
 		int *flag_ptr = reinterpret_cast<int*>(init_ptr_2);
+		//std::cout << "write 0 to " << flag_ptr << std::endl;
 		*flag_ptr = 0;
-		//std::cout << me << ": flag is at " << flag_ptr << std::endl;
-		init_ptr_2 += batch_mem_size;
+		init_ptr_2 += alignmentT;
 	}
 	
 	return ptr;
@@ -314,11 +318,12 @@ inline void remote_allocate_real(gasnet_token_t token, gasnet_handlerarg_t arg0,
                                                 gasnet_handlerarg_t arg1,
                                                 gasnet_handlerarg_t arg2,
                                                 gasnet_handlerarg_t arg3,
-                                                gasnet_handlerarg_t arg4
+                                                gasnet_handlerarg_t arg4,
+                                                gasnet_handlerarg_t arg5
                        ) {
 	using namespace adabs::tools;
 	
-	void* returnee = adabs::collective::impl::real_allocate(arg2, arg3, arg4);
+	void* returnee = adabs::collective::impl::real_allocate(arg2, arg3, arg4, arg5);
 	
 	GASNET_CALL(gasnet_AMReplyShort4(token, adabs::impl::REMOTE_COLLECTIVE_ALLOC_REPLY,
 	                                 arg0,

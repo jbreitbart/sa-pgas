@@ -133,21 +133,27 @@ bool operator!=(const allocator<T1>&, const allocator<T2>&) throw() {
 namespace impl {
 
 inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT, const int alignmentT) {
-	const size_t batch_mem_size = sizeT * num_objects + alignmentT;
+	const size_t batch_mem_size = sizeT * batch_size + alignmentT;
+	//std::cout << "malloc: |T| = " << sizeT << ", #batch = " << batch_size << ", alignment = " << alignmentT << std::endl;
 	
 	const size_t num_batch =   (num_objects % batch_size == 0)
 	                         ? (num_objects / batch_size)
 	                         : (num_objects / batch_size) + 1;
 	
 	const size_t mem_size = num_batch * batch_mem_size;
+	//std::cout << "malloc: #batches = " << num_batch << ", |batch| = " << batch_mem_size << std::endl;
 	
 	void *ptr = malloc (mem_size);
 	
-	char *init_ptr = reinterpret_cast<char*>(ptr);
+	char *init_ptr = (char*)ptr;
+	
+	//std::cout << "malloc: returned " << ptr << " to " << (void*)((char*)ptr + mem_size) << ", bytes: " << mem_size << std::endl;
 	
 	for (int i=0; i<num_batch; ++i) {
+		//std::cout << "init ptr " << (void*)init_ptr << std::endl;
 		init_ptr += batch_mem_size - alignmentT;
-		int *flag_ptr = reinterpret_cast<int*>(init_ptr);
+		//std::cout << "init ptr " << (void*)init_ptr << std::endl;
+		int *flag_ptr = (int*)init_ptr;
 		//std::cout << "write 0 to " << flag_ptr << std::endl;
 		*flag_ptr = 0;
 		init_ptr += alignmentT;
@@ -155,31 +161,6 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	
 	return ptr;
 }
-
-#if 0
-inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT) {
-	const size_t batch_mem_size = sizeT * num_objects + sizeof(int);
-	
-	const size_t num_batch =   (num_objects % batch_size == 0)
-	                         ? (num_objects / batch_size)
-	                         : (num_objects / batch_size) + 1;
-	
-	const size_t mem_size = num_batch * batch_mem_size;
-	
-	void *ptr = malloc (mem_size);
-	
-	char *init_ptr = reinterpret_cast<char*>(ptr);
-	
-	for (int i=0; i<num_batch; ++i) {
-		int *flag_ptr = reinterpret_cast<int*>(init_ptr);
-		*flag_ptr = 0;
-		//std::cout << "write 0 to " << flag_ptr << std::endl;
-		init_ptr += batch_mem_size;
-	}
-	
-	return ptr;
-}
-#endif
 
 }
 

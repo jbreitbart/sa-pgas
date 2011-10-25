@@ -43,7 +43,8 @@ class pgas_addr {
 			int a = tools::alignment<T>::val();
 			if (a<sizeof(int)) a = sizeof(int);
 			
-		    _ptr = (T*)((char*)_orig_ptr + sizeof(void*)*adabs::all + a);
+			const int pointer_alignment = a - ((adabs::all*sizeof(void*)) % a);
+		    _ptr = (T*)((char*)_orig_ptr + sizeof(void*)*adabs::all + pointer_alignment);
 		    //std::cout << me << ": " << "my data lifes on " << _ptr << std::endl;
 		    
 		}
@@ -86,11 +87,7 @@ class pgas_addr {
 				if (i == adabs::me) continue;
 				
 				void* remote_ptr = get_remote_ptr(i);
-				
-				int a = tools::alignment<T>::val();
-				if (a<sizeof(int)) a = sizeof(int);
-				
-				void* remote_flag = (void*)((char*)remote_ptr - a);
+				void* remote_flag = get_remote_flag(i);
 				
 				/*std::cout << me << ": sent data from " << _ptr << " to " << remote_ptr << std::endl;
 				std::cout << me << ": flag should be at " << remote_flag << std::endl;*/
@@ -166,13 +163,17 @@ class pgas_addr {
 			return (void*)result;
 		}
 		
+		void* get_remote_flag (const int node) {
+			char *ptr = (char*)get_remote_ptr(node);
+			ptr += _batch_size * sizeof(T);
+			return ptr;
+		}
+		
+		
 		int* get_flag() const {
 			assert(_ptr!=0);
 			
-			int a = tools::alignment<T>::val();
-			if (a<sizeof(int)) a = sizeof(int);
-			
-			return (int*)((char*)_ptr - a);
+			return (int*)((char*)_ptr + _batch_size*sizeof(T));
 		}
 		
 		T* get_data_ptr() const {

@@ -35,10 +35,9 @@ class remote {
 		   _batch_size_x(cpy_dist.get_batch_size_x()), _batch_size_y(cpy_dist.get_batch_size_y()),
 		   _data(cpy_dist.get_data_addr()),
 		   _datas(0)
-		 {
+		{
 			assert (_x%_batch_size_x == 0);
 			assert (_y%_batch_size_y == 0);
-			
 		}
 		
 
@@ -117,23 +116,7 @@ class remote {
 			
 			_datas[offset]->set_data(ptr);
 		}
-
-		void fill(const int x, const int y, const pgas_addr<T> ptr, const int nb_elements) {
-			assert (x%_batch_size_x == 0);
-			assert (y%_batch_size_y == 0);
-			assert(_batch_size_x * _batch_size_y == ptr.get_batch_size());
-			assert((_batch_size_x * _batch_size_y)%nb_elements == 0);
-			
-			// TODO do not use!!
-			
-			const int batches = nb_elements / _batch_size_x / _batch_size_y;
-			const int offset  = get_offset(x,y);
-			
-			adabs::memcpy(_data+offset, ptr, batches);
-			
-			// TODO fill cache?
-		}
-				
+	
 		int get_size_x() const {
 			return _x;
 		}

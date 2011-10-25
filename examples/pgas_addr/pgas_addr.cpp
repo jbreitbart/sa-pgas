@@ -47,6 +47,7 @@ void check_and_fill_matrix(T& m, const int start, const int stride) {
 	for (int i=start*m.get_tile_size(); i<640; i+=m.get_tile_size()*stride) {
 		for (int j=0; j<640; j+=m.get_tile_size()) {
 			int * ptr = m.get_tile_unitialized(i, j);
+			
 			for (int ii=0; ii<64; ++ii) {
 				for (int jj=0; jj<64; ++jj) {
 					ptr[ii*64+jj] = jj+23;
@@ -71,10 +72,10 @@ int main(int argc, char *argv[]) {
 	
 	typedef adabs::matrix<adabs::local<int> > local_matrix;
 	typedef adabs::matrix<adabs::remote<int> > remote_matrix;
-	
+
 	local_matrix ml(640, 640, 64);
 	check_and_fill_matrix (ml, 0, 1);
-#if 0
+
 	adabs::matrix < adabs::collective::everywhere<int> > mev(640, 640, 64);
 	check_and_fill_matrix (mev, me, all);
 
@@ -84,7 +85,7 @@ int main(int argc, char *argv[]) {
 	ma_v.set(me, ma_v_ptr);
 	
 	check_matrix(ma_v.get(next));
-#endif
+
 	
 	// test local = local assignment
 	{
@@ -97,8 +98,9 @@ int main(int argc, char *argv[]) {
 		
 		check_matrix(local_2_ma);
 	}
+	
+	adabs::barrier_wait();
 
-#if 0		
 	// test remote = local assignment
 	{
 		adabs::barrier_wait();
@@ -119,12 +121,15 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	adabs::barrier_wait();
+
 	// test local = remote assignment
 	{
 		adabs::barrier_wait();
 		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
 		if (me == 0) {
 			local_matrix local_test(640, 640, 64);
+			
 			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
 			ma_v_ptr[0] = local_test.make_remote();
 			ma_v.set(me, ma_v_ptr);
@@ -139,7 +144,9 @@ int main(int argc, char *argv[]) {
 			check_matrix(local_test);
 		}
 	}
-#endif	
+	
+	adabs::barrier_wait();
+
 	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
 	
 	#pragma omp parallel
@@ -212,7 +219,6 @@ int main(int argc, char *argv[]) {
 	#pragma omp parallel for
 	for (int i=me*64; i<128*2; i+=inc) {
 		for (int j=0; j<128*2; j+=64) {
-			//std::cout << "calling set for " << i << ", " << j << std::endl;
 			int* ptr = distri.get_data_unitialized(i, j);
 			
 			for (int ii=0; ii<64; ++ii) {
@@ -222,16 +228,12 @@ int main(int argc, char *argv[]) {
 			distri.set_data(i, j, ptr);
 		}
 	}
-	
-	//std::cout << "=========================" << std::endl;
-	//std::cout << "=========================" << std::endl;
-	
+		
 	const int start = 0;//(me+1)%all;
 	inc = 64;
 	#pragma omp parallel for
 	for (int i=start*64; i<128*2; i+=inc) {
 		for (int j=0; j<128*2; j+=all*64) {
-			//std::cout << "calling get for " << i << ", " << j << std::endl;
 			const int* ptr = distri.get_data(i, j);
 			
 			for (int ii=0; ii<64; ++ii) {
@@ -239,9 +241,7 @@ int main(int argc, char *argv[]) {
 			}
 		}
 	}
-	
-#if 0
-#endif	
+
 	std::cout << me << ": " << "Everything fine!" << std::endl;
 
 	adabs::exit(0);
