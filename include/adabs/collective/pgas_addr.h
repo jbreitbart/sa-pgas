@@ -80,6 +80,8 @@ class pgas_addr {
 			
 			using namespace adabs::tools;
 			
+			__sync_synchronize();
+			
 			const bool a = available();
 			assert (a);
 			

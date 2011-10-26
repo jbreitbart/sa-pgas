@@ -29,7 +29,9 @@ void check_matrix(const T& m) {
 
 	for (int i=0; i<640; i+=m.get_tile_size()) {
 		for (int j=0; j<640; j+=m.get_tile_size()) {
+			//std::cout << adabs::me << ": getting " << i << ", " << j << std::endl;
 			const int * ptr = m.get_tile(i, j);
+			//std::cout << adabs::me << ": getting " << i << ", " << j << " - done" << std::endl;
 			for (int ii=0; ii<64; ++ii) {
 				for (int jj=0; jj<64; ++jj) {
 					if (!(ptr[ii*64+jj] == jj+23))
@@ -44,8 +46,8 @@ void check_matrix(const T& m) {
 
 template <typename T>
 void check_and_fill_matrix(T& m, const int start, const int stride) {
-	for (int i=start*m.get_tile_size(); i<640; i+=m.get_tile_size()*stride) {
-		for (int j=0; j<640; j+=m.get_tile_size()) {
+	for (int j=0; j<640; j+=m.get_tile_size()) {
+		for (int i=start*m.get_tile_size(); i<640; i+=m.get_tile_size()*stride) {
 			int * ptr = m.get_tile_unitialized(i, j);
 			
 			for (int ii=0; ii<64; ++ii) {
@@ -147,6 +149,21 @@ int main(int argc, char *argv[]) {
 	
 	adabs::barrier_wait();
 
+	// Gather(!)
+	// test local = distributed assignment
+	{
+		adabs::matrix < adabs::distributed::row_distribution<int, 64> > dist_ma(640, 640, 64);
+		
+		check_and_fill_matrix (dist_ma, me, all);
+		
+		if (me ==0) {
+			adabs::matrix < adabs::local<int> > local_ma(640, 640, 64);
+			//check_matrix(local_ma);
+		}
+	}
+	
+	adabs::barrier_wait();
+#if 0
 	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
 	
 	#pragma omp parallel
@@ -212,16 +229,16 @@ int main(int argc, char *argv[]) {
 	}
 
 	adabs::collective::allocator<int>::deallocate(ictile);
-	
-	adabs::distributed::row_distribution<int, 64> distri(128*2, 128*2, 64);
+#endif	
+	adabs::distributed::row_distribution<int, 64> distri(640, 640, 64, 64);
 	
 	int inc = all*64;
 	#pragma omp parallel for
-	for (int i=me*64; i<128*2; i+=inc) {
-		for (int j=0; j<128*2; j+=64) {
+	for (int i=me*64; i<640; i+=inc) {
+		for (int j=0; j<640; j+=64) {
 			int* ptr = distri.get_data_unitialized(i, j);
 			
-			for (int ii=0; ii<64; ++ii) {
+			for (int ii=0; ii<64*64; ++ii) {
 				ptr[ii] = ii+23;
 			}
 			
@@ -229,14 +246,12 @@ int main(int argc, char *argv[]) {
 		}
 	}
 		
-	const int start = 0;//(me+1)%all;
-	inc = 64;
 	#pragma omp parallel for
-	for (int i=start*64; i<128*2; i+=inc) {
-		for (int j=0; j<128*2; j+=all*64) {
+	for (int i=0; i<640; i+=64) {
+		for (int j=0; j<640; j+=64) {
 			const int* ptr = distri.get_data(i, j);
 			
-			for (int ii=0; ii<64; ++ii) {
+			for (int ii=0; ii<64*64; ++ii) {
 				assert(ptr[ii] == ii+23);
 			}
 		}

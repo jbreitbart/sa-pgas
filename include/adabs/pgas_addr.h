@@ -126,9 +126,11 @@ class pgas_addr {
 				}
 			}
 			
-			//std::cout << "waiting on flag " << (void*)get_flag() << std::endl;
+			//std::cout << "waiting on flag " << (void*)get_flag() << " - local " << is_local() << std::endl;
 			while (!is_available()) {
 			}
+			
+			//std::cout << "waiting on flag " << (void*)get_flag() << " - local " << is_local() << " - done!" << std::endl;
 			
 			return _cache;
 		}
@@ -149,10 +151,11 @@ class pgas_addr {
 			
 			using namespace adabs::tools;
 			
+			__sync_synchronize();
 			const bool a = available();
 			assert (a);
 			
-			//if (is_local()) std::cout << "local set!" << std::endl;
+			//if (is_local()) std::cout << "local set on flag " << (void*)get_flag() << std::endl;
 			
 			if (!is_local()) {
 				//std::cout << "remote set" << std::endl;
@@ -447,7 +450,6 @@ inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes
 	using namespace adabs::tools;
 	
 	int *flag  = get_ptr<int>(arg0, arg1);
-	//flag = (int*)((char*)flag + nbytes);
 	
 	//std::cout << gasnet_mynode() << " remote set receviced " << flag << std::endl;
 	
@@ -496,12 +498,11 @@ inline void* remote_get_thread(void *threadarg) {
 	__sync_synchronize();
 	
 	// sent data back
-	void* buf = (char*)arg->local;// + arg->flag_diff;
+	void* buf = (char*)arg->local;
 
-	int* data = (int*)arg->remote; // flag
+	int* data = (int*)arg->remote;
 	int* flag = (int*)((char*)arg->remote + arg->batch_mem_size);
 	//std::cout << "calling remote set: " << (void*)arg->remote << " + " << arg->batch_mem_size << std::endl; 
-	//++data; // move to data
 
 	GASNET_CALL(
 	            gasnet_AMRequestLong2(arg->dest, adabs::impl::PGAS_ADDR_SET,

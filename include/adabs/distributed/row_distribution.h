@@ -10,22 +10,27 @@ namespace distributed {
 
 template <typename T, int nb_of_rows>
 class row_distribution {
+	public:
+		typedef T value_type;
+		
 	private:
 		const int _x;
 		const int _y;
-		const int _batch_size;
+		const int _batch_size_x;
+		const int _batch_size_y;
 		
 		adabs::vector< adabs::collective::everywhere< adabs::remote<T> > > _remote;
 		adabs::local<T> _local;
 		
 	public:
-		row_distribution(const int x, const int y, const int batch_size) : _x(x), _y(y), _batch_size(batch_size),
+		row_distribution(const int x, const int y, const int batch_size_x, const int batch_size_y) :
+		    _x(x), _y(y), _batch_size_x(batch_size_x), _batch_size_y(batch_size_y),
 			_remote(adabs::all),
-			_local(x, local_size_y(), _batch_size, _batch_size)
+			_local(x, local_size_y(), _batch_size_x, _batch_size_y)
 		 {
-			assert (x%batch_size == 0);
-			assert (y%batch_size == 0);
-			assert (nb_of_rows % batch_size == 0);
+			assert (_x%_batch_size_x == 0);
+			assert (_y%_batch_size_y == 0);
+			assert (nb_of_rows % _batch_size_y == 0);
 			
 			adabs::remote<T>* ptr = _remote.get_unitialized(adabs::me);
 			new (ptr) adabs::remote<T>(_local);
@@ -40,8 +45,8 @@ class row_distribution {
 	
 	public:
 		T* get_data_unitialized(const int x, const int y) {
-			assert (x%_batch_size == 0);
-			assert (y%_batch_size == 0);
+			assert (x%_batch_size_x == 0);
+			assert (y%_batch_size_y == 0);
 			
 			if (is_local(x,y)) {
 				return _local.get_data_unitialized(get_local_x(x), get_local_y(y));
@@ -54,8 +59,8 @@ class row_distribution {
 		}
 		
 		const T* get_data(const int x, const int y) const {
-			assert (x%_batch_size == 0);
-			assert (y%_batch_size == 0);
+			assert (x%_batch_size_x == 0);
+			assert (y%_batch_size_y == 0);
 			
 			if (is_local(x,y)) {
 				//std::cout << "local get" << std::endl;
@@ -71,9 +76,10 @@ class row_distribution {
 		}
 		
 		void set_data(const int x, const int y, T* ptr) {
-			assert (x%_batch_size == 0);
-			assert (y%_batch_size == 0);
+			assert (x%_batch_size_x == 0);
+			assert (y%_batch_size_y == 0);
 			
+			//std::cout << "set dist data " << x << ", " << y << " local on " << get_node(x,y) << " at " << get_local_x(x) << ", " << get_local_y(y) << std::endl;
 			if (is_local(x,y)) {
 				_local.set_data(get_local_x(x), get_local_y(y), ptr);
 				return;
@@ -85,7 +91,7 @@ class row_distribution {
 			const_cast< adabs::remote<T>& >(_remote.get(node)).set_data(get_local_x(x), get_local_y(y), ptr);
 		}
 		
-		void fill(const int x, const int y, pgas_addr<T> ptr, const int nb_elements) {
+		/*void fill(const int x, const int y, pgas_addr<T> ptr, const int nb_elements) {
 			assert (x%_batch_size_x == 0);
 			assert (y%_batch_size_y == 0);
 			assert(_batch_size_x * _batch_size_y == ptr.get_batch_size());
@@ -105,6 +111,14 @@ class row_distribution {
 			const int offset  = get_offset(x,y);
 			
 			adabs::memcpy(_local+offset, ptr, batches);
+		}*/
+		
+		int get_batch_size_x() const {
+			return _batch_size_x;
+		}
+		
+		int get_batch_size_y() const {
+			return _batch_size_y;
 		}
 		
 	private:
@@ -132,7 +146,7 @@ class row_distribution {
 		}
 		
 		int get_offset(const int x, const int y) const {
-			return (get_local_x(x)/_batch_size + _x*get_local_y(y)/_batch_size/_batch_size);
+			return (get_local_x(x)/_batch_size_x + _x*get_local_y(y)/_batch_size_x/_batch_size_y);
 		}
 };
 
