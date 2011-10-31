@@ -41,8 +41,7 @@ class local {
 		}
 	
 	private:
-		local(const local<T> &cpy);// : _x(cpy._x), _y(cpy._y), _batch_size_x(cpy._batch_size_x), _batch_size_y(cpy._batch_size_y), _data(cpy._data)
-		//{}
+		local(const local<T> &cpy);
 	
 	public:
 		remote<T> make_remote() const {

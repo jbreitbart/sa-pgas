@@ -134,6 +134,7 @@ namespace impl {
 
 inline void* real_allocate(const int num_objects, const int batch_size, const int sizeT, const int alignmentT) {
 	const size_t batch_mem_size = sizeT * batch_size + alignmentT;
+	//#pragma omp critical
 	//std::cout << "malloc: |T| = " << sizeT << ", #batch = " << batch_size << ", alignment = " << alignmentT << std::endl;
 	
 	const size_t num_batch =   (num_objects % batch_size == 0)
@@ -147,6 +148,7 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	
 	char *init_ptr = (char*)ptr;
 	
+	//#pragma omp critical
 	//std::cout << "malloc: returned " << ptr << " to " << (void*)((char*)ptr + mem_size) << ", bytes: " << mem_size << std::endl;
 	
 	for (int i=0; i<num_batch; ++i) {
@@ -154,6 +156,7 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 		init_ptr += batch_mem_size - alignmentT;
 		//std::cout << "init ptr " << (void*)init_ptr << std::endl;
 		int *flag_ptr = (int*)init_ptr;
+		//#pragma omp critical
 		//std::cout << "write 0 to " << flag_ptr << std::endl;
 		*flag_ptr = 0;
 		init_ptr += alignmentT;

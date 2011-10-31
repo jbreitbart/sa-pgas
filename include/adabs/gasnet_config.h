@@ -3,7 +3,7 @@
 #define GASNET_SEGMENT_EVERYTHING 1
 #define GASNET_PAR
 //#define GASNET_PARSYNC
-#define GASNET_CONDUIT_IBV 1
+//#define GASNET_CONDUIT_IBV 1
 
 #define restrict __restrict__
 

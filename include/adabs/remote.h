@@ -68,8 +68,6 @@ class remote {
 			
 			const int offset = get_offset(x,y);
 			
-			//std::cout << me << ": get uninit " << x << " - " << y << " - " << offset << std::endl;
-			
 			#pragma omp critical (remote_cache)
 			{
 				if (_datas == 0) init();
@@ -83,8 +81,6 @@ class remote {
 		const T* get_data(const int x, const int y=1) const {
 			assert (x%_batch_size_x == 0);
 			assert (y%_batch_size_y == 0);
-			
-			//std::cout << me << ": " << "remote get data called" << std::endl;
 			
 			const int offset = get_offset(x,y);
 			
@@ -166,6 +162,10 @@ class remote {
 			adabs::memcpy(_data, rhs.get_data(), local_size()/_batch_size_x/_batch_size_y);
 			
 			return *this;
+		}
+		
+		pgas_addr<T>& get_data() const {
+			return const_cast<pgas_addr<T>&>(_data);
 		}
 
 	private:

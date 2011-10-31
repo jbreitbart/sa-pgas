@@ -24,42 +24,44 @@ using namespace std;
 
 const int THREADS = 4;
 
+const int SIZE = 640;
+const int BSIZE = 64;
+
 template <typename T>
 void check_matrix(const T& m) {
-
-	for (int i=0; i<640; i+=m.get_tile_size()) {
-		for (int j=0; j<640; j+=m.get_tile_size()) {
+	for (int i=0; i<SIZE; i+=m.get_tile_size()) {
+		for (int j=0; j<SIZE; j+=m.get_tile_size()) {
 			//std::cout << adabs::me << ": getting " << i << ", " << j << std::endl;
 			const int * ptr = m.get_tile(i, j);
 			//std::cout << adabs::me << ": getting " << i << ", " << j << " - done" << std::endl;
-			for (int ii=0; ii<64; ++ii) {
-				for (int jj=0; jj<64; ++jj) {
-					if (!(ptr[ii*64+jj] == jj+23))
-						std::cout << ptr[ii*64+jj] << " should be " << jj+23 << std::endl;
-					assert (ptr[ii*64+jj] == jj+23);
+			for (int ii=0; ii<BSIZE; ++ii) {
+				for (int jj=0; jj<BSIZE; ++jj) {
+					if (!(ptr[ii*BSIZE+jj] == jj+23))
+						std::cout << ptr[ii*BSIZE+jj] << " should be " << jj+23 << std::endl;
+					assert (ptr[ii*BSIZE+jj] == jj+23);
 				}
 			}
-			
+		
 		}
 	}
 }
 
 template <typename T>
 void check_and_fill_matrix(T& m, const int start, const int stride) {
-	for (int j=0; j<640; j+=m.get_tile_size()) {
-		for (int i=start*m.get_tile_size(); i<640; i+=m.get_tile_size()*stride) {
+	for (int j=0; j<SIZE; j+=m.get_tile_size()) {
+		for (int i=start*m.get_tile_size(); i<SIZE; i+=m.get_tile_size()*stride) {
 			int * ptr = m.get_tile_unitialized(i, j);
 			
-			for (int ii=0; ii<64; ++ii) {
-				for (int jj=0; jj<64; ++jj) {
-					ptr[ii*64+jj] = jj+23;
+			for (int ii=0; ii<BSIZE; ++ii) {
+				for (int jj=0; jj<BSIZE; ++jj) {
+						ptr[ii*BSIZE+jj] = jj+23;
 				}
 			}
 			
 			m.set_tile(i, j, ptr);
 		}
 	}
-	
+
 	check_matrix(m);
 }
 
@@ -69,16 +71,15 @@ int main(int argc, char *argv[]) {
 	using adabs::next;
 	
 	adabs::init(&argc, &argv);
-	
 	omp_set_num_threads(THREADS);
 	
 	typedef adabs::matrix<adabs::local<int> > local_matrix;
 	typedef adabs::matrix<adabs::remote<int> > remote_matrix;
 
-	local_matrix ml(640, 640, 64);
+	local_matrix ml(SIZE, SIZE, BSIZE);
 	check_and_fill_matrix (ml, 0, 1);
 
-	adabs::matrix < adabs::collective::everywhere<int> > mev(640, 640, 64);
+	adabs::matrix < adabs::collective::everywhere<int> > mev(SIZE, SIZE, BSIZE);
 	check_and_fill_matrix (mev, me, all);
 
 	adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(all);
@@ -91,10 +92,10 @@ int main(int argc, char *argv[]) {
 	
 	// test local = local assignment
 	{
-		adabs::matrix < adabs::local<int> > local_ma(640, 640, 64);
+		adabs::matrix < adabs::local<int> > local_ma(SIZE, SIZE, BSIZE);
 		check_and_fill_matrix (local_ma, 0, 1);
 		
-		adabs::matrix < adabs::local<int> > local_2_ma(640, 640, 64);
+		adabs::matrix < adabs::local<int> > local_2_ma(SIZE, SIZE, BSIZE);
 		
 		local_2_ma = local_ma;
 		
@@ -108,14 +109,14 @@ int main(int argc, char *argv[]) {
 		adabs::barrier_wait();
 		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
 		if (me == 0) {
-			local_matrix local_test(640, 640, 64);
+			local_matrix local_test(SIZE, SIZE, BSIZE);
 			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
 			ma_v_ptr[0] = local_test.make_remote();
 			ma_v.set(me, ma_v_ptr);
 			check_matrix(local_test);
 		}
 		if (me == 1) {
-			local_matrix local_test(640, 640, 64);
+			local_matrix local_test(SIZE, SIZE, BSIZE);
 			check_and_fill_matrix (local_test, 0, 1);
 			
 			remote_matrix remote_test (ma_v.get(0));
@@ -130,7 +131,7 @@ int main(int argc, char *argv[]) {
 		adabs::barrier_wait();
 		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
 		if (me == 0) {
-			local_matrix local_test(640, 640, 64);
+			local_matrix local_test(SIZE, SIZE, BSIZE);
 			
 			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
 			ma_v_ptr[0] = local_test.make_remote();
@@ -139,31 +140,32 @@ int main(int argc, char *argv[]) {
 			check_and_fill_matrix (local_test, 0, 1);
 		}
 		if (me == 1) {
-			local_matrix local_test(640, 640, 64);
+			local_matrix local_test(SIZE, SIZE, BSIZE);
 			
 			remote_matrix remote_test (ma_v.get(0));
 			local_test = remote_test;
 			check_matrix(local_test);
 		}
 	}
-	
+
 	adabs::barrier_wait();
 
 	// Gather(!)
 	// test local = distributed assignment
 	{
-		adabs::matrix < adabs::distributed::row_distribution<int, 64> > dist_ma(640, 640, 64);
+		adabs::matrix < adabs::distributed::row_distribution<int, BSIZE> > dist_ma(SIZE, SIZE, BSIZE);
 		
 		check_and_fill_matrix (dist_ma, me, all);
 		
-		if (me ==0) {
-			adabs::matrix < adabs::local<int> > local_ma(640, 640, 64);
+		check_matrix(dist_ma);
+		
+		/*if (me ==0) {
+			adabs::matrix < adabs::local<int> > local_ma(SIZE, SIZE, BSIZE);
 			//check_matrix(local_ma);
-		}
+		}*/
+		adabs::barrier_wait();
 	}
 	
-	adabs::barrier_wait();
-#if 0
 	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
 	
 	#pragma omp parallel
@@ -229,16 +231,16 @@ int main(int argc, char *argv[]) {
 	}
 
 	adabs::collective::allocator<int>::deallocate(ictile);
-#endif	
-	adabs::distributed::row_distribution<int, 64> distri(640, 640, 64, 64);
 	
-	int inc = all*64;
+	adabs::distributed::row_distribution<int, BSIZE> distri(SIZE, SIZE, BSIZE, BSIZE);
+	
+	int inc = all*BSIZE;
 	#pragma omp parallel for
-	for (int i=me*64; i<640; i+=inc) {
-		for (int j=0; j<640; j+=64) {
+	for (int i=me*BSIZE; i<SIZE; i+=inc) {
+		for (int j=0; j<SIZE; j+=BSIZE) {
 			int* ptr = distri.get_data_unitialized(i, j);
 			
-			for (int ii=0; ii<64*64; ++ii) {
+			for (int ii=0; ii<BSIZE*BSIZE; ++ii) {
 				ptr[ii] = ii+23;
 			}
 			
@@ -247,11 +249,11 @@ int main(int argc, char *argv[]) {
 	}
 		
 	#pragma omp parallel for
-	for (int i=0; i<640; i+=64) {
-		for (int j=0; j<640; j+=64) {
+	for (int i=0; i<SIZE; i+=BSIZE) {
+		for (int j=0; j<SIZE; j+=BSIZE) {
 			const int* ptr = distri.get_data(i, j);
 			
-			for (int ii=0; ii<64*64; ++ii) {
+			for (int ii=0; ii<BSIZE*BSIZE; ++ii) {
 				assert(ptr[ii] == ii+23);
 			}
 		}

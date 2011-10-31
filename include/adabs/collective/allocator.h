@@ -277,6 +277,8 @@ inline void remote_free(const int node, void* ptr) {
 
 inline void* real_allocate(const int num_objects, const int batch_size, const int batch_mem_size, const int alignmentT) {
 	
+	//std::cout << "real alloc parameter: " << num_objects << ", " << batch_size << ", " << batch_mem_size << ", " << alignmentT << std::endl;
+	
 	const size_t num_batch =   (num_objects % batch_size == 0)
 	                         ? (num_objects / batch_size)
 	                         : (num_objects / batch_size) + 1;
@@ -297,6 +299,8 @@ inline void* real_allocate(const int num_objects, const int batch_size, const in
 	}
 	
 	char *init_ptr_2 = reinterpret_cast<char*>(init_ptr_1) + pointer_alignment;
+	
+	//std::cout << "malloc returned " << ptr << " to " << (void*)((char*)ptr + mem_size) << " - " << mem_size << std::endl;
 	
 	for (int i=0; i<num_batch; ++i) {
 		init_ptr_2 += batch_mem_size - alignmentT;

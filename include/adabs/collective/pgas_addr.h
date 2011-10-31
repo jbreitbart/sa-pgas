@@ -76,8 +76,6 @@ class pgas_addr {
 		void set_data(T const * const data) {
 			assert (data == _ptr);
 			
-			//std::cout << me << ": " << "set_data " << *data << std::endl;
-			
 			using namespace adabs::tools;
 			
 			__sync_synchronize();
@@ -90,9 +88,6 @@ class pgas_addr {
 				
 				void* remote_ptr = get_remote_ptr(i);
 				void* remote_flag = get_remote_flag(i);
-				
-				/*std::cout << me << ": sent data from " << _ptr << " to " << remote_ptr << std::endl;
-				std::cout << me << ": flag should be at " << remote_flag << std::endl;*/
 				
 				GASNET_CALL(gasnet_AMRequestLong2(i,
 											      adabs::impl::COLLECTIVE_PGAS_ADDR_SET,
@@ -153,15 +148,8 @@ class pgas_addr {
 		void* get_remote_ptr(const int node) {
 			char* start = (char*)get_remote_orig_ptr(node);
 			
-			/*int a = tools::alignment<T>::val();
-			if (a<sizeof(int)) a = sizeof(int);
-			
-		    T* result = (T*)(start + sizeof(void*)*adabs::all + a);*/
-		    
 		    char* result = ((char*)_ptr - (char*)_orig_ptr) + start;
 		    
-		    //std::cout << me << " -> " << node << ": " << (void*)start << " - " << ((char*)_ptr - (char*)_orig_ptr) << " - " << (void*)result << " - " << (void*)_ptr << " - " << (void*)_orig_ptr << std::endl;
-			
 			return (void*)result;
 		}
 		
@@ -198,7 +186,6 @@ class pgas_addr {
 		// check and set flag to 1
 		bool writing() const {
 			volatile int *ptr = get_flag();
-			//std::cout << me << ": " << get_flag() << " - " << *ptr << std::endl;
 			return __sync_bool_compare_and_swap(ptr, 0, 1);
 		}
 		
@@ -228,7 +215,6 @@ inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes
 	
 	int val = __sync_lock_test_and_set(flag, 3);
 	
-	//std::cout << me << ": wrote data to " << buf << " - " << val << std::endl;
 	assert(val != 3);
 }
 

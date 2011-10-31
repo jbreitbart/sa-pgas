@@ -37,7 +37,6 @@ void memcpy (pgas_addr<T> destination, pgas_addr<T> source, const int num) {
 			int nb_bytes = source_endptr - sourceptr;
 			if (nb_bytes > NETWORK_BATCHES) nb_bytes = NETWORK_BATCHES;
 			
-			//std::cout << source.get_node() << "," << (void*)sourceptr << " to " << (void*)destptr << ", " << nb_bytes << ", " << i << std::endl;
 			gasnet_get_nbi_bulk (destptr, source.get_node(), sourceptr, nb_bytes);
 			
 			sourceptr += NETWORK_BATCHES;
@@ -74,7 +73,6 @@ void memcpy (pgas_addr<T> destination, pgas_addr<T> source, const int num) {
 
 namespace pgas {
 inline void pgas_memcpy (gasnet_token_t token, void *buf, size_t nbytes) {
-	//std::cout << "wrote data from " << buf << " to " << (int*)((char*)buf + nbytes) << " value " << *(int*)buf << " - " << nbytes << std::endl;
 	__sync_synchronize();
 }	
 }
