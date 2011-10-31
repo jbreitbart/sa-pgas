@@ -100,9 +100,9 @@ int main(int argc, char *argv[]) {
 		local_2_ma = local_ma;
 		
 		check_matrix(local_2_ma);
+		adabs::barrier_wait();
 	}
 	
-	adabs::barrier_wait();
 
 	// test remote = local assignment
 	{
@@ -122,13 +122,12 @@ int main(int argc, char *argv[]) {
 			remote_matrix remote_test (ma_v.get(0));
 			remote_test = local_test;
 		}
+		adabs::barrier_wait();
 	}
 
-	adabs::barrier_wait();
 
 	// test local = remote assignment
 	{
-		adabs::barrier_wait();
 		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
 		if (me == 0) {
 			local_matrix local_test(SIZE, SIZE, BSIZE);
@@ -146,9 +145,9 @@ int main(int argc, char *argv[]) {
 			local_test = remote_test;
 			check_matrix(local_test);
 		}
+		adabs::barrier_wait();
 	}
 
-	adabs::barrier_wait();
 
 	// Gather(!)
 	// test local = distributed assignment
@@ -159,104 +158,113 @@ int main(int argc, char *argv[]) {
 		
 		check_matrix(dist_ma);
 		
-		/*if (me ==0) {
+		if (me ==0) {
 			adabs::matrix < adabs::local<int> > local_ma(SIZE, SIZE, BSIZE);
 			//check_matrix(local_ma);
-		}*/
+		}
 		adabs::barrier_wait();
 	}
 	
-	adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
-	
-	#pragma omp parallel
 	{
-		if (omp_get_thread_num() == 0) {
-			int * ptr = itile.get_data_unitialized();
+		adabs::pgas_addr<int> itile = adabs::allocator<int>::allocate(100*128, 128);
+	
+		#pragma omp parallel
+		{
+			if (omp_get_thread_num() == 0) {
+				int * ptr = itile.get_data_unitialized();
 			
+				for (int i=0; i<128; ++i) {
+					ptr[i] = i;
+				}
+			
+				itile.set_data(ptr);
+			}
+		
+			adabs::pgas_addr<int> tlocal = itile + omp_get_thread_num();
+		
+			for (int i=omp_get_thread_num()+1; i<100; i+=omp_get_num_threads()) {
+				const int *old_ptr = tlocal.get_data();
+			
+				tlocal += 1;
+			
+				int *new_ptr = tlocal.get_data_unitialized();
+			
+				for (int i=0; i<128; ++i) {
+					new_ptr[i] = old_ptr[i];
+				}
+			
+				tlocal.set_data(new_ptr);
+			
+				tlocal += omp_get_num_threads()-1;
+			}
+		
+			if (omp_get_thread_num() == THREADS-1) {
+				tlocal -= 1;
+			
+				const int *ptr = tlocal.get_data();
+				for (int i=0; i<128; ++i) {
+					assert (i == ptr[i]); 
+				}
+			}
+		}
+	
+		adabs::allocator<int>::deallocate(itile);
+
+		adabs::barrier_wait();
+	}
+
+	{
+		adabs::collective::pgas_addr<int> ictile = adabs::collective::allocator<int>::allocate(128, 128);
+	
+		if (me==0) {
+			int * ptr = ictile.get_data_unitialized();
+	
 			for (int i=0; i<128; ++i) {
 				ptr[i] = i;
 			}
-			
-			itile.set_data(ptr);
-		}
-		
-		adabs::pgas_addr<int> tlocal = itile + omp_get_thread_num();
-		
-		for (int i=omp_get_thread_num()+1; i<100; i+=omp_get_num_threads()) {
-			const int *old_ptr = tlocal.get_data();
-			
-			tlocal += 1;
-			
-			int *new_ptr = tlocal.get_data_unitialized();
-			
-			for (int i=0; i<128; ++i) {
-				new_ptr[i] = old_ptr[i];
-			}
-			
-			tlocal.set_data(new_ptr);
-			
-			tlocal += omp_get_num_threads()-1;
-		}
-		
-		if (omp_get_thread_num() == THREADS-1) {
-			tlocal -= 1;
-			
-			const int *ptr = tlocal.get_data();
+	
+			ictile.set_data(ptr);
+		} else {
+			const int * ptr = ictile.get_data();
 			for (int i=0; i<128; ++i) {
 				assert (i == ptr[i]); 
 			}
 		}
-	}
-	
-	adabs::allocator<int>::deallocate(itile);
 
-	adabs::barrier_wait();
-
-	
-	adabs::collective::pgas_addr<int> ictile = adabs::collective::allocator<int>::allocate(128, 128);
-	
-	if (me==0) {
-		int * ptr = ictile.get_data_unitialized();
-	
-		for (int i=0; i<128; ++i) {
-			ptr[i] = i;
-		}
-	
-		ictile.set_data(ptr);
-	} else {
-		const int * ptr = ictile.get_data();
-		for (int i=0; i<128; ++i) {
-			assert (i == ptr[i]); 
-		}
-	}
-
-	adabs::collective::allocator<int>::deallocate(ictile);
-	
-	adabs::distributed::row_distribution<int, BSIZE> distri(SIZE, SIZE, BSIZE, BSIZE);
-	
-	int inc = all*BSIZE;
-	#pragma omp parallel for
-	for (int i=me*BSIZE; i<SIZE; i+=inc) {
-		for (int j=0; j<SIZE; j+=BSIZE) {
-			int* ptr = distri.get_data_unitialized(i, j);
-			
-			for (int ii=0; ii<BSIZE*BSIZE; ++ii) {
-				ptr[ii] = ii+23;
-			}
-			
-			distri.set_data(i, j, ptr);
-		}
-	}
+		adabs::barrier_wait();
 		
-	#pragma omp parallel for
-	for (int i=0; i<SIZE; i+=BSIZE) {
-		for (int j=0; j<SIZE; j+=BSIZE) {
-			const int* ptr = distri.get_data(i, j);
+		adabs::collective::allocator<int>::deallocate(ictile);
+	}
+	
+	{
+		adabs::distributed::row_distribution<int, BSIZE> distri(SIZE, SIZE, BSIZE, BSIZE);
+	
+		int inc = all*BSIZE;
+		#pragma omp parallel for
+		for (int i=me*BSIZE; i<SIZE; i+=inc) {
+			for (int j=0; j<SIZE; j+=BSIZE) {
+				int* ptr = distri.get_data_unitialized(i, j);
 			
-			for (int ii=0; ii<BSIZE*BSIZE; ++ii) {
-				assert(ptr[ii] == ii+23);
+				for (int ii=0; ii<BSIZE*BSIZE; ++ii) {
+					ptr[ii] = ii+23;
+				}
+			
+				distri.set_data(i, j, ptr);
 			}
 		}
+		
+		#pragma omp parallel for
+		for (int i=0; i<SIZE; i+=BSIZE) {
+			for (int j=0; j<SIZE; j+=BSIZE) {
+				const int* ptr = distri.get_data(i, j);
+			
+				for (int ii=0; ii<BSIZE*BSIZE; ++ii) {
+					assert(ptr[ii] == ii+23);
+				}
+			}
+		}
+		
+		adabs::barrier_wait();
 	}
 
 	std::cout << me << ": " << "Everything fine!" << std::endl;

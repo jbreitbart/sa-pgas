@@ -57,9 +57,14 @@ void exit(const int errorcode) {
 
 static void* network(void *threadid) {
 	GASNET_BEGIN_FUNCTION();
+	
 	while (thread_end != 1) {
 		GASNET_CALL(gasnet_AMPoll())
+		adabs::impl::process_requests();
 	}
+	
+	adabs::impl::end_requests();
+	
 	__sync_lock_test_and_set (&thread_end, 2);
 	pthread_exit(0);
 }

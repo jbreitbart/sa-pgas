@@ -8,6 +8,8 @@
 #include "adabs/tools/ptr_divider.h"
 #include "adabs/tools/alignment.h"
 
+#include "adabs/impl/pgas_addr.h"
+
 namespace adabs {
 
 template <typename T>
@@ -48,6 +50,9 @@ inline void done_marker(gasnet_token_t token,
                                   gasnet_handlerarg_t arg1  // done marker pointer
                                 );
 }
+
+
+
 /**
  * A address in our pgas world
  */
@@ -459,64 +464,6 @@ inline void pgas_addr_remote_set (gasnet_token_t token, void *buf, size_t nbytes
 	assert(val != adabs::pgas_addr<void>::FULL);
 }
 
-
-/**
- * Pthread argument class
- */
-struct remote_get_thread_arg {
-	void *local;
-	const int batch_mem_size;
-	void *remote;
-	const gasnet_node_t dest;
-	const int flag_diff;
-	
-	remote_get_thread_arg(void *_local, 
-	                      const int _batch_mem_size,
-	                      void *_remote,
-	                      gasnet_node_t _dest,
-	                      const int _flag_diff
-	                      ) : local(_local),
-	                          batch_mem_size(_batch_mem_size),
-	                          remote(_remote),
-	                          dest(_dest),
-	                          flag_diff(_flag_diff) {}
-};
-
-inline void* remote_get_thread(void *threadarg) {
-	using namespace adabs::tools;
-	
-	remote_get_thread_arg* arg = (remote_get_thread_arg*)threadarg;
-	
-	// wait until flag is set
-	volatile int* reader = (volatile int*) ((char*)arg->local + arg->batch_mem_size);
-
-	//#pragma omp critical
-	//std::cout << "remote waiting on pointer " << (void*)reader << std::endl;
-	while (*reader != adabs::pgas_addr<void>::FULL) {}
-	//#pragma omp critical
-	//std::cout << "remote waiting on pointer " << (void*)reader << " done " << std::endl;
-	
-	__sync_synchronize();
-	
-	// sent data back
-	void* buf = (char*)arg->local;
-
-	int* data = (int*)arg->remote;
-	int* flag = (int*)((char*)arg->remote + arg->batch_mem_size);
-
-	GASNET_CALL(
-	            gasnet_AMRequestLong2(arg->dest, adabs::impl::PGAS_ADDR_SET,
-	                                  buf, arg->batch_mem_size, data,
-	                                  get_low(flag),
-	                                  get_high(flag)
-	                                 )
-	           )
-	           
-	delete arg;
-	
-	pthread_exit(0);
-}
-
 inline void pgas_addr_remote_get (gasnet_token_t token,
                                   gasnet_handlerarg_t arg0, // data pointer
                                   gasnet_handlerarg_t arg1, // data pointer
@@ -526,6 +473,7 @@ inline void pgas_addr_remote_get (gasnet_token_t token,
                                   gasnet_handlerarg_t arg5  // flag diff for remote pointer
                                  ) {
 	using namespace adabs::tools;
+	using namespace adabs::impl;
 	
 	void *local  = get_ptr<void>(arg0, arg1);
 	void *remote = get_ptr<void>(arg3, arg4);
@@ -533,13 +481,9 @@ inline void pgas_addr_remote_get (gasnet_token_t token,
 	gasnet_node_t src;
 	GASNET_CALL( gasnet_AMGetMsgSource(token, &src) )
 	
-	remote_get_thread_arg *para = new remote_get_thread_arg(local, arg2, remote, src, arg5);
-	
-	pthread_t thread_id;
-	pthread_attr_t attrb;
-	pthread_attr_init(&attrb);
-	pthread_attr_setdetachstate(&attrb, PTHREAD_CREATE_DETACHED);
-	pthread_create(&thread_id, &attrb, remote_get_thread, (void*) para);
+	#pragma omp critical (global_requests)
+	global_requests.insert(global_requests.begin(), remote_get_thread_arg(local, arg2, remote, src, arg5));
+
 }
 
 }
