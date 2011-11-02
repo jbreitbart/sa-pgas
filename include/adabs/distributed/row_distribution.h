@@ -6,6 +6,10 @@
 #include "adabs/local.h"
 
 namespace adabs {
+
+template <typename T>
+class local;
+
 namespace distributed {
 
 template <typename T, int nb_of_rows>
@@ -32,9 +36,6 @@ class row_distribution {
 			assert (_y%_batch_size_y == 0);
 			assert (nb_of_rows % _batch_size_y == 0);
 			
-			//#pragma omp critical
-			//std::cout << "created local with size " << x << ", " << local_size_y() << std::endl;
-			
 			adabs::remote<T>* ptr = _remote.get_unitialized(adabs::me);
 			new (ptr) adabs::remote<T>(_local);
 			_remote.set(adabs::me, ptr);
@@ -47,6 +48,22 @@ class row_distribution {
 		row_distribution(const row_distribution<T, nb_of_rows> &copy);
 	
 	public:
+		int get_size_x() const {
+			return _x;
+		}
+		
+		int get_size_y() const {
+			return _y;
+		}
+		
+		int get_batch_size_x() const {
+			return _batch_size_x;
+		}
+		
+		int get_batch_size_y() const {
+			return _batch_size_y;
+		}
+		
 		T* get_data_unitialized(const int x, const int y) {
 			assert (x%_batch_size_x == 0);
 			assert (y%_batch_size_y == 0);
@@ -93,29 +110,43 @@ class row_distribution {
 			const_cast< adabs::remote<T>& >(_remote.get(node)).set_data(get_local_x(x), get_local_y(y), ptr);
 		}
 
-		int get_batch_size_x() const {
-			return _batch_size_x;
-		}
+		void wait_for_complete() const {
 		
-		int get_batch_size_y() const {
-			return _batch_size_y;
-		}
-		
-	private:
-		
-		int local_size_y() const {
-			const int y_t = (_y%adabs::all == 0) ? _y/adabs::all : _y/adabs::all+1;
-			const int returnee = (y_t%_batch_size_y == 0) ? y_t : y_t + (_batch_size_y - y_t%_batch_size_y);
+			_local.wait_for_complete();
 			
-			return returnee;
+			// could be done in parallel
+			for (int i=0; i<_remote.size(); ++i) {
+				if (i!=adabs::me)
+					_remote.get(i).wait_for_complete();
+			}
+		}		
+		
+		void check_empty() const {
+			_local.check_empty();
+			
+			// could be done in parallel
+			for (int i=0; i<_remote.size(); ++i) {
+				if (i!=adabs::me)
+					_remote.get(i).check_empty();
+			}
 		}
 		
-		bool is_local(const int x, const int y) const {
-			return get_node(x,y) == adabs::me;
+		const remote<T>& get_distri(const int i) const {
+			return _remote.get(i);
 		}
-		
-		int get_node(const int x, const int y) const {
-			return (y/nb_of_rows) % adabs::all;
+
+		int local_size_y (const int node) const {
+			const int blocks = _y / nb_of_rows;
+			
+			int result = 0;
+			
+			for (int i=node; i<blocks; i+=adabs::all) {
+				result += nb_of_rows;
+			}
+			
+			if ((blocks % adabs::all) == node) result += _y % nb_of_rows;
+			
+			return result;			
 		}
 		
 		int get_local_x(const int x) const {
@@ -125,6 +156,21 @@ class row_distribution {
 		int get_local_y(const int y) const {
 			return y/(all*nb_of_rows)*nb_of_rows + (y%nb_of_rows);
 		}
+		
+		int get_node(const int x, const int y) const {
+			return (y/nb_of_rows) % adabs::all;
+		}
+		
+	private:
+		
+		int local_size_y() const {
+			return local_size_y(adabs::me);
+		}
+		
+		bool is_local(const int x, const int y) const {
+			return get_node(x,y) == adabs::me;
+		}
+		
 		
 		int get_offset(const int x, const int y) const {
 			return (get_local_x(x)/_batch_size_x + _x*get_local_y(y)/_batch_size_x/_batch_size_y);

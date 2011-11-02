@@ -129,35 +129,55 @@ class remote {
 			return _batch_size_y;
 		}
 		
-		remote<T>& operator=(const local<T> &rhs) {
+		void wait_for_complete() const {
 			using namespace adabs::tools;
+			pgas_addr<T> temp = get_data_addr() + 1;
+			const int stride = (char*)temp.get_orig_flag() - (char*)get_data_addr().get_orig_flag();
+		
+			// check if remote data is available
+			volatile int done = 0;
 			
-			for (int i=0; i<_y; i+=_batch_size_y) {
-				for (int j=0; j<_x; j+=_batch_size_x) {
-					rhs.get_data(i, j);
-				}
-			}
+			GASNET_CALL(gasnet_AMRequestShort6(get_data_addr().get_node(),
+										       adabs::impl::PGAS_ADDR_CHECK_GET_ALL,
+										       get_low(get_data_addr().get_orig_flag()),
+										       get_high(get_data_addr().get_orig_flag()),
+										       stride,
+										       local_size()/_batch_size_x/_batch_size_y,
+										       get_low(&done),
+										       get_high(&done)
+										      )
+				      )
+
+			while (done != 1) {}
+		}		
+		
+		void check_empty() const {
+			using namespace adabs::tools;
+			pgas_addr<T> temp = get_data() + 1;
+			const int stride = (char*)temp.get_orig_flag() - (char*)get_data().get_orig_flag();
+	
+			// check if remote data is still empty
+			volatile int done = 0;
+			GASNET_CALL(gasnet_AMRequestShort6(_data.get_node(),
+											   adabs::impl::PGAS_ADDR_GET_UNINIT,
+											   get_low(_data.get_orig_flag()),
+											   get_high(_data.get_orig_flag()),
+											   stride,
+											   local_size()/_batch_size_x/_batch_size_y,
+											   get_low(&done),
+											   get_high(&done)
+											  )
+					  )
+
+			while (done != 1) {}
+		}
+		
+		remote<T>& operator=(const local<T> &rhs) {
+			
+			rhs.wait_for_complete();
 			
 			// TODO add options to disable checks
-			{
-				pgas_addr<T> temp = rhs.get_data() + 1;
-				const int stride = (char*)temp.get_flag() - (char*)rhs.get_data().get_flag();
-			
-				// check if remote data is still empty
-				volatile int done = 0;
-				GASNET_CALL(gasnet_AMRequestShort6(_data.get_node(),
-											       adabs::impl::PGAS_ADDR_GET_UNINIT,
-											       get_low(_data.get_orig_flag()),
-											       get_high(_data.get_orig_flag()),
-											       stride,
-											       local_size()/_batch_size_x/_batch_size_y,
-											       get_low(&done),
-											       get_high(&done)
-											      )
-					      )
-
-				while (done != 1) {}
-			}
+			check_empty();
 			
 			adabs::memcpy(_data, rhs.get_data(), local_size()/_batch_size_x/_batch_size_y);
 			

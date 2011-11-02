@@ -106,17 +106,15 @@ int main(int argc, char *argv[]) {
 
 	// test remote = local assignment
 	{
-		adabs::barrier_wait();
+		local_matrix local_test(SIZE, SIZE, BSIZE);
 		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
 		if (me == 0) {
-			local_matrix local_test(SIZE, SIZE, BSIZE);
 			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
 			ma_v_ptr[0] = local_test.make_remote();
 			ma_v.set(me, ma_v_ptr);
 			check_matrix(local_test);
 		}
 		if (me == 1) {
-			local_matrix local_test(SIZE, SIZE, BSIZE);
 			check_and_fill_matrix (local_test, 0, 1);
 			
 			remote_matrix remote_test (ma_v.get(0));
@@ -129,9 +127,8 @@ int main(int argc, char *argv[]) {
 	// test local = remote assignment
 	{
 		adabs::vector < adabs::collective::everywhere < remote_matrix > > ma_v(1);
+		local_matrix local_test(SIZE, SIZE, BSIZE);
 		if (me == 0) {
-			local_matrix local_test(SIZE, SIZE, BSIZE);
-			
 			remote_matrix *ma_v_ptr = ma_v.get_unitialized(0);
 			ma_v_ptr[0] = local_test.make_remote();
 			ma_v.set(me, ma_v_ptr);
@@ -139,8 +136,6 @@ int main(int argc, char *argv[]) {
 			check_and_fill_matrix (local_test, 0, 1);
 		}
 		if (me == 1) {
-			local_matrix local_test(SIZE, SIZE, BSIZE);
-			
 			remote_matrix remote_test (ma_v.get(0));
 			local_test = remote_test;
 			check_matrix(local_test);
@@ -160,7 +155,10 @@ int main(int argc, char *argv[]) {
 		
 		if (me ==0) {
 			adabs::matrix < adabs::local<int> > local_ma(SIZE, SIZE, BSIZE);
-			//check_matrix(local_ma);
+			
+			local_ma = dist_ma;
+			
+			check_matrix(local_ma);
 		}
 		adabs::barrier_wait();
 	}

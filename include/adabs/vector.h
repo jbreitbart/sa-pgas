@@ -67,7 +67,7 @@ class vector {
 		 * Returns the number of tiles in x-dimension
 		 */
 		int size() const {
-			return _distri.size_x();
+			return _distri.get_size_x();
 		}
 		
 		int get_batch_size() const {
