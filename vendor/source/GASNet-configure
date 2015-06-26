@@ -1,9 +1,0 @@
-Debug config:
-./configure --enable-debug --enable-segment-everything --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install
-./configure --enable-debug --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install
-
-Release config
-./configure --enable-trace --enable-stats --disable-aligned-segments --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install
-
-Intel compiler release config
-./configure --enable-trace --enable-stats --disable-ibv --disable-aligned-segments --enable-segment-everything --enable-pthreads --enable-par --prefix=/home/jbreitbart/projekte/pgas/code/sa-pgas/vendor/install CC=/opt/intel/composerxe-2011.2.137/bin/intel64/icc CXX=/opt/intel/composerxe-2011.2.137/bin/intel64/icpc
