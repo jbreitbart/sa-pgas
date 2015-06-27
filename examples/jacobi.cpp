@@ -4,23 +4,28 @@
 #include "psam/matrix.hpp"
 
 int main(int argc, char const *argv[]) {
-	psam::memblock<size_t, 100, 100> mem;
+	psam::memblock<size_t> mem(1000, {250});
 
 #pragma omp parallel
 	{
 		const int id = omp_get_thread_num();
 		if (id == 0) {
-			auto x = mem.start_write();
+			for (size_t t = 0; t < mem.size; t += 250) {
+				auto x = mem.start_write(t);
 #pragma omp simd
-			for (size_t i = 0; i < mem.size; ++i) {
-				x[i] = i;
+				for (size_t i = 0; i < 250; ++i) {
+					x.first[i] = i;
+				}
+				mem.end_write(x);
 			}
-			mem.end_write();
 		} else {
-			auto x = mem.read();
 			int red = 0;
-			for (size_t i = 0; i < mem.size; ++i) {
-				red += x[i];
+			for (size_t t = 0; t < mem.size; t += 250) {
+				auto x = mem.read(t);
+#pragma omp simd
+				for (size_t i = 0; i < 250; ++i) {
+					red += x[i];
+				}
 			}
 #pragma omp critical
 			std::cout << "t: " << id << " red: " << red << std::endl;

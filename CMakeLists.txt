@@ -26,7 +26,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   endif()
 
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "debug")
-    ADD_DEFINITIONS(-g3 -O0 -Weverything -Wnoc++98-compat)
+    ADD_DEFINITIONS(-g3 -O0 -Weverything)
   endif()
 
   ADD_DEFINITIONS (-Wno-c++98-compat -Wno-c++98-compat-pedantic)
