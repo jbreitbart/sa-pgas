@@ -70,10 +70,11 @@ class memblock {
 	}
 
 	const flagT *get_flag(const size_t i) const noexcept {
-		size_t index = (i / _offset_sum);
-		size_t temp = index * _offset_sum;
+		size_t index = (i / _offset_sum) * _offsets.size();
+		size_t temp = (i / _offset_sum) * _offset_sum;
+
 		for (auto o : _offsets) {
-			if (temp + o < i) {
+			if (temp + o <= i) {
 				temp += o;
 				++index;
 			} else {
@@ -99,15 +100,16 @@ class memblock {
 	}
 
 	// TODO change the pointer somehow, should not be used outside this class
-	std::pair<T *, flagT const *const> start_write(const size_t index) noexcept {
+	std::pair<T *, void const *const> start_write(const size_t index) noexcept {
 		auto flag = get_flag(index);
 		assert(*flag == flagT::EMPTY);
-		return std::make_pair(_data.get() + index, flag);
+		return std::make_pair(_data.get() + index, reinterpret_cast<void const *const>(flag));
 	}
 
-	void end_write(std::pair<T *, flagT const *const> &d) noexcept {
+	// TODO change the pointer somehow, should not be used outside this class
+	void end_write(std::pair<T *, void const *const> &d) noexcept {
 		__sync_synchronize();
-		*const_cast<flagT *>(d.second) = flagT::FULL;
+		*reinterpret_cast<volatile flagT *>(const_cast<void *>(d.second)) = flagT::FULL;
 	}
 
   private: /* FRIENDS, treat with car ;) */
