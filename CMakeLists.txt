@@ -26,7 +26,7 @@ if ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Clang")
   endif()
 
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "debug")
-    ADD_DEFINITIONS(-g3 -O0 -Weverything)
+    ADD_DEFINITIONS(-g3 -O0 -fno-inline -Weverything)
   endif()
 
   ADD_DEFINITIONS (-Wno-c++98-compat -Wno-c++98-compat-pedantic)
@@ -38,7 +38,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
   endif()
 
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "debug")
-    ADD_DEFINITIONS(-g3 -O0 -Wall -Wextra -Wunused)
+    ADD_DEFINITIONS(-g3 -O0 -fno-inline -Wall -Wextra -Wunused)
   endif()
 
 elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
@@ -48,7 +48,7 @@ elseif ("${CMAKE_CXX_COMPILER_ID}" STREQUAL "Intel")
   endif()
 
   if ("${CMAKE_BUILD_TYPE}" STREQUAL "debug")
-    ADD_DEFINITIONS(-g3 -O0 -Wall -Wextra)
+    ADD_DEFINITIONS(-g3 -O0 -fno-inline -Wall -Wextra)
   endif()
 
 endif()

@@ -14,21 +14,27 @@ namespace psam {
 
 template <typename T>
 class memblock {
-  private: /* CONSTANTS, TYPEDEFS */
-	enum class flagT : std::int8_t { EMPTY, FULL };
+	/**** CONSTANTS, TYPEDEFS ****/
+  private:
+	// currently one flag per cache line. Maybe overkill.
+	// TODO think about it
+	enum class flagT : std::int8_t { EMPTY, FULL } __attribute__((aligned(64)));
 	const size_t _offset_sum;
 
-  public: /* CONSTANTS, TYPEDEFS */
+  public:
 	const size_t size;
 
-  private: /* DATA */
-	std::unique_ptr<T> _data;
+	/**** DATA ****/
+  private:
+	std::unique_ptr<T[]> _data;
 	const std::vector<size_t> _offsets;
 	std::vector<flagT> _flags;
 
-  public: /* CONSTRUCTORS, DESTRUCTOR, ASSIGNMENTS */
+	/**** CONSTRUCTORS, DESTRUCTOR, ASSIGNMENTS ****/
+  public:
 	memblock() = delete;
 	memblock(const memblock<T> &rhs) = delete;
+	memblock<T> &operator=(const memblock<T> &rhs) = delete;
 
 	memblock(const size_t size_, std::initializer_list<size_t> offsets)
 		: _offset_sum(std::accumulate(offsets.begin(), offsets.end(), size_t(0))), size(size_), _data(new T[size_]),
@@ -51,9 +57,7 @@ class memblock {
 		assert(this != &rhs);
 	}
 
-	memblock<T> &operator=(const memblock<T> &rhs) = delete;
-
-	memblock<T> &operator=(memblock<T> &&rhs) {
+	memblock<T> &operator=(memblock<T> &&rhs) noexcept {
 		assert(this != &rhs);
 
 		_offset_sum = rhs._offset_sum;
@@ -64,7 +68,8 @@ class memblock {
 		return *this;
 	}
 
-  private: /* FUNCTIONS */
+	/**** FUNCTIONS ****/
+  private:
 	flagT *get_flag(const size_t i) noexcept {
 		return const_cast<flagT *>(static_cast<const memblock<T> *>(this)->get_flag(i));
 	}
@@ -85,24 +90,25 @@ class memblock {
 		return &(_flags[index]) + index;
 	}
 
-  public: /* FUNCTIONS */
-	const T *read(const size_t index) const noexcept {
-		auto flag = get_flag(index);
-		if (*flag == flagT::EMPTY) {
-			volatile flagT const *const volptr_flag = flag;
-			while (*volptr_flag == flagT::EMPTY) {
-			}
-		}
+	/**** FUNCTIONS ****/
+  public:
+	T const *const read(const size_t index) const noexcept {
+		assert(index < size);
+		volatile flagT const *const volptr_flag = get_flag(index);
 
-		assert(*flag == flagT::FULL);
+		while (*volptr_flag != flagT::FULL) {
+		}
 
 		return _data.get() + index;
 	}
 
 	// TODO change the pointer somehow, should not be used outside this class
 	std::pair<T *, void const *const> start_write(const size_t index) noexcept {
+		assert(index < size);
+
 		auto flag = get_flag(index);
 		assert(*flag == flagT::EMPTY);
+
 		return std::make_pair(_data.get() + index, reinterpret_cast<void const *const>(flag));
 	}
 
@@ -112,7 +118,8 @@ class memblock {
 		*reinterpret_cast<volatile flagT *>(const_cast<void *>(d.second)) = flagT::FULL;
 	}
 
-  private: /* FRIENDS, treat with car ;) */
+	/**** FRIENDS, treat with care ;) ****/
+  private:
 #if 0
 	friend std::ostream &operator<<(std::ostream &os, const memblock<T> &mem) {
 		os << "size: " << mem.size << ", offsets: ";
